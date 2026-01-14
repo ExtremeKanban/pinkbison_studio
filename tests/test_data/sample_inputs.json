@@ -1,0 +1,11 @@
+{
+  "plot_seed": "A lone explorer discovers an ancient AI buried beneath the ice.",
+  "world_outline": "Act I: Discovery. Act II: Conflict. Act III: Revelation.",
+  "character_outline": "Hero, Mentor, Villain",
+  "character_world_notes": "Frozen wasteland, ancient ruins, AI cult",
+  "scene_prompt": "The hero confronts the AI for the first time.",
+  "scene_outline_snippet": "Act II midpoint confrontation",
+  "scene_world_notes": "Cold, dark, humming machinery",
+  "scene_character_notes": "Hero is afraid but determined",
+  "pipeline_seed": "A cosmic mystery threatens the galaxy."
+}

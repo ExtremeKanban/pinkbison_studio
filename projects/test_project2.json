@@ -1,0 +1,31 @@
+{
+  "project_name": "test_project2",
+  "meta": {
+    "genre": "Sci‑Fi",
+    "tone": "Epic, serious",
+    "themes": "Destiny, sacrifice, technology vs humanity",
+    "setting": "Far future galaxy"
+  },
+  "outline": "",
+  "world": "",
+  "characters": "",
+  "scene_raw": "",
+  "scene_continuity": "",
+  "scene_final": "",
+  "pipeline_outline": "",
+  "pipeline_world": "",
+  "pipeline_characters": "",
+  "inputs": {
+    "seed_idea_plot": "",
+    "outline_for_world": "",
+    "world_notes_for_chars": "",
+    "outline_for_chars": "",
+    "scene_prompt": "",
+    "scene_outline_snippet": "",
+    "scene_world_notes": "",
+    "scene_character_notes": "",
+    "seed_idea_pipeline": "",
+    "memory_search_query": "",
+    "new_memory_text": ""
+  }
+}

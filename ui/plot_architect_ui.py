@@ -1,13 +1,19 @@
 import streamlit as st
-from agents.plot_architect import PlotArchitect
+from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
 
-
 def render_plot_architect(project_name):
-    agent = PlotArchitect(project_name)
+
+    # Ensure a shared ProducerAgent exists
+    if "producer" not in st.session_state:
+        st.session_state["producer"] = ProducerAgent(project_name)
+
+    producer = st.session_state["producer"]
+    agent = producer.plot_architect
 
     st.header("Plot Architect Agent")
+
 
     st.text_area("Seed idea for the Plot Architect", key="seed_idea_plot")
 

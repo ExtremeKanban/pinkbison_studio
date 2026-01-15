@@ -1,11 +1,17 @@
 import streamlit as st
-from agents.character_agent import CharacterAgent
+from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
 
 
 def render_character_agent(project_name):
-    agent = CharacterAgent(project_name)
+
+    # Ensure a shared ProducerAgent exists
+    if "producer" not in st.session_state:
+        st.session_state["producer"] = ProducerAgent(project_name)
+
+    producer = st.session_state["producer"]
+    agent = producer.character_agent
 
     st.header("Character Agent")
 

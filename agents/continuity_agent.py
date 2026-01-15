@@ -5,19 +5,13 @@ from models.heavy_model import generate_with_heavy_model
 from intelligence_bus import IntelligenceBus
 
 
-class ContinuityAgent:
-    def __init__(
-        self,
-        project_name: str = "default_project",
-        fast_model_url: str = "http://localhost:8000/v1/chat/completions",
-        model_mode: str = "draft",
-    ):
-        self.project_name = project_name
-        self.name = "continuity"
-        self.fast_model_url = fast_model_url
-        self.model_mode = model_mode
-        self.memory = MemoryStore(project_name=project_name)
-        self.feedback_inbox = []
+from agents.base_agent import AgentBase
+
+class ContinuityAgent(AgentBase):
+    def __init__(self, project_name, intelligence_bus, fast_model_url, model_mode):
+        super().__init__("continuity", project_name, intelligence_bus, fast_model_url, model_mode)
+        self.memory = MemoryStore(project_name)
+
 
     def receive_feedback(self, text):
         self.feedback_inbox.append(text)

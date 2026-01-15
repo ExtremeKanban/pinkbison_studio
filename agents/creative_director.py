@@ -7,25 +7,14 @@ from agent_bus import GLOBAL_AGENT_BUS
 from intelligence_bus import IntelligenceBus
 
 
-class CreativeDirectorAgent:
-    """
-    High-level meta-agent that:
-    - reviews critiques
-    - proposes canon rules
-    - logs guidance into memory/graph
-    """
+from agents.base_agent import AgentBase
 
-    def __init__(
-        self,
-        project_name: str = "default_project",
-        fast_model_url: str = "http://localhost:8000/v1/chat/completions"
-    ):
-        self.project_name = project_name
-        self.name = "creative_director"
-        self.fast_model_url = fast_model_url
-        self.memory = MemoryStore(project_name=project_name)
-        self.graph = GraphStore(project_name=project_name)
-        self.feedback_inbox = []
+class CreativeDirectorAgent(AgentBase):
+    def __init__(self, project_name, intelligence_bus, fast_model_url):
+        super().__init__("creative_director", project_name, intelligence_bus, fast_model_url, model_mode="draft")
+        self.memory = MemoryStore(project_name)
+        self.graph = GraphStore(project_name)
+
 
     def receive_feedback(self, text):
         self.feedback_inbox.append(text)

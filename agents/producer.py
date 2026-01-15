@@ -40,34 +40,46 @@ class ProducerAgent:
         # They will internally switch to heavy model when model_mode == "high_quality".
         self.plot_architect = PlotArchitect(
             project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
         self.worldbuilder = WorldbuilderAgent(
             project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
         self.character_agent = CharacterAgent(
             project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
         self.scene_generator = SceneGeneratorAgent(
             project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
         self.continuity_agent = ContinuityAgent(
             project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
         self.editor_agent = EditorAgent(
             project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
 
         self.agents = {
             "plot_architect": self.plot_architect,

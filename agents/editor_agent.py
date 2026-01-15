@@ -3,17 +3,12 @@ from models.heavy_model import generate_with_heavy_model
 from intelligence_bus import IntelligenceBus
 
 
-class EditorAgent:
-    def __init__(
-        self,
-        project_name,
-        fast_model_url: str = "http://localhost:8000/v1/chat/completions",
-        model_mode: str = "draft",
-    ):
-        self.fast_model_url = fast_model_url
-        self.model_mode = model_mode
-        self.project_name = project_name
-        self.feedback_inbox = []
+from agents.base_agent import AgentBase
+
+class EditorAgent(AgentBase):
+    def __init__(self, project_name, intelligence_bus, fast_model_url, model_mode):
+        super().__init__("editor", project_name, intelligence_bus, fast_model_url, model_mode)
+
 
     def receive_feedback(self, text):
         self.feedback_inbox.append(text)

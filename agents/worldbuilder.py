@@ -3,20 +3,14 @@ from agents.memory_extractor import MemoryExtractor
 from memory_store import MemoryStore
 from models.heavy_model import generate_with_heavy_model
 from intelligence_bus import IntelligenceBus
+from agents.base_agent import AgentBase
 
-
-class WorldbuilderAgent:
-    def __init__(
-        self,
-        project_name: str = "default_project",
-        fast_model_url: str = "http://localhost:8000/v1/chat/completions",
-        model_mode: str = "draft",
-    ):
-        self.fast_model_url = fast_model_url
-        self.model_mode = model_mode
+class WorldbuilderAgent(AgentBase):
+    def __init__(self, project_name, intelligence_bus, fast_model_url, model_mode):
+        super().__init__("worldbuilder", project_name, intelligence_bus, fast_model_url, model_mode)
         self.extractor = MemoryExtractor(fast_model_url)
-        self.memory = MemoryStore(project_name=project_name)
-        self.feedback_inbox = []
+        self.memory = MemoryStore(project_name)
+
 
     def receive_feedback(self, text):
         self.feedback_inbox.append(text)

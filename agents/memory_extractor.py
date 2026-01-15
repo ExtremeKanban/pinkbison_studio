@@ -1,15 +1,31 @@
 import requests
+from intelligence_bus import IntelligenceBus
 
 class MemoryExtractor:
     def __init__(self, fast_model_url: str = "http://localhost:8000/v1/chat/completions"):
         self.fast_model_url = fast_model_url
+        self.feedback_inbox = []
+
+    def receive_feedback(self, text):
+        self.feedback_inbox.append(text)
+
 
     def extract(self, text: str) -> list[str]:
         """
         Extract key factual statements from text.
         Returns a list of short, standalone sentences suitable for long-term memory.
         """
+        # Inject human feedback if present
+        if self.feedback_inbox:
+            human_feedback = "\n".join(self.feedback_inbox)
+            self.feedback_inbox.clear()
+        else:
+            human_feedback = "None"
+
         prompt = f"""
+        Human feedback:
+        \"\"\"{human_feedback}\"\"\"
+
         Extract the key factual statements from the following text.
         Only include facts that would be useful for long-term story and world memory:
         - character traits and relationships

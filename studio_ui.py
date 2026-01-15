@@ -13,6 +13,8 @@ from ui.intelligence_panel import render_intelligence_panel
 from ui.memory_search_ui import render_memory_search
 from ui.memory_add_ui import render_memory_add
 from ui.memory_browser_ui import render_memory_browser
+from agents.producer import ProducerAgent
+
 
 # Initialize session state for project data
 initialize_session_state()
@@ -23,6 +25,9 @@ if "current_project" not in st.session_state:
 
 # Sidebar (project switching happens here)
 project_name = render_sidebar()
+
+producer = ProducerAgent(project_name)
+
 
 st.title("PinkBison Creative Studio")
 st.markdown("---")
@@ -36,9 +41,9 @@ render_scene_pipeline(project_name)
 render_story_bible_pipeline(project_name)
 
 # NEW: Producer Agent panel (autonomous director)
-render_producer_agent_panel(project_name)
+render_producer_agent_panel(producer)
 
-render_intelligence_panel(project_name)
+render_intelligence_panel(producer)
 render_memory_search(project_name)
 render_memory_add(project_name)
 render_memory_browser(project_name)

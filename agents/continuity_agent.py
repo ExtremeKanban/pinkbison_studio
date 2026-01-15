@@ -2,6 +2,7 @@ import requests
 from memory_store import MemoryStore
 from agent_bus import GLOBAL_AGENT_BUS
 from models.heavy_model import generate_with_heavy_model
+from intelligence_bus import IntelligenceBus
 
 
 class ContinuityAgent:
@@ -16,6 +17,10 @@ class ContinuityAgent:
         self.fast_model_url = fast_model_url
         self.model_mode = model_mode
         self.memory = MemoryStore(project_name=project_name)
+        self.feedback_inbox = []
+
+    def receive_feedback(self, text):
+        self.feedback_inbox.append(text)
 
 
     def run(self, new_text: str) -> str:
@@ -23,6 +28,14 @@ class ContinuityAgent:
         Check new_text against project memory for contradictions and adjust if needed.
         Returns a revised version that is as consistent as possible.
         """
+        if self.feedback_inbox:
+            # Inject feedback into the context 
+            context = {}
+            context["human_feedback"] = self.feedback_inbox.copy()
+            self.feedback_inbox.clear()
+        else:
+            context = {}
+            
         memory_context = self.memory.search("core canon rules events characters world", k=20)
         memory_text = "\n".join(memory_context) if memory_context else "None yet."
 

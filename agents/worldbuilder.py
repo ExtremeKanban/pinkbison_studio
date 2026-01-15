@@ -2,6 +2,7 @@ import requests
 from agents.memory_extractor import MemoryExtractor
 from memory_store import MemoryStore
 from models.heavy_model import generate_with_heavy_model
+from intelligence_bus import IntelligenceBus
 
 
 class WorldbuilderAgent:
@@ -15,6 +16,10 @@ class WorldbuilderAgent:
         self.model_mode = model_mode
         self.extractor = MemoryExtractor(fast_model_url)
         self.memory = MemoryStore(project_name=project_name)
+        self.feedback_inbox = []
+
+    def receive_feedback(self, text):
+        self.feedback_inbox.append(text)
 
 
     def run(
@@ -29,6 +34,14 @@ class WorldbuilderAgent:
         """
         Expand the plot outline into a rich world: geography, factions, cosmology, systems, history.
         """
+        if self.feedback_inbox:
+            # Inject feedback into the context 
+            context = {}
+            context["human_feedback"] = self.feedback_inbox.copy()
+            self.feedback_inbox.clear()
+        else:
+            context = {}
+            
         # Retrieve any existing world-related memory for context
         memory_context = self.memory.search("world geography factions cosmology history rules", k=10)
         memory_text = "\n".join(memory_context) if memory_context else "None yet."

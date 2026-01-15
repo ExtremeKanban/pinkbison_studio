@@ -1,15 +1,22 @@
 import requests
 from models.heavy_model import generate_with_heavy_model
+from intelligence_bus import IntelligenceBus
 
 
 class EditorAgent:
     def __init__(
         self,
+        project_name,
         fast_model_url: str = "http://localhost:8000/v1/chat/completions",
         model_mode: str = "draft",
     ):
         self.fast_model_url = fast_model_url
         self.model_mode = model_mode
+        self.project_name = project_name
+        self.feedback_inbox = []
+
+    def receive_feedback(self, text):
+        self.feedback_inbox.append(text)
 
 
     def run(
@@ -20,6 +27,15 @@ class EditorAgent:
         """
         Edit and improve text for style, clarity, pacing, and emotional impact.
         """
+
+        if self.feedback_inbox:
+            # Inject feedback into the context 
+            context = {}
+            context["human_feedback"] = self.feedback_inbox.copy()
+            self.feedback_inbox.clear()
+        else:
+            context = {}
+            
         prompt = f"""
         You are a professional fiction line editor.
 

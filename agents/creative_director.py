@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from memory_store import MemoryStore
 from graph_store import GraphStore
 from agent_bus import GLOBAL_AGENT_BUS
+from intelligence_bus import IntelligenceBus
 
 
 class CreativeDirectorAgent:
@@ -24,6 +25,10 @@ class CreativeDirectorAgent:
         self.fast_model_url = fast_model_url
         self.memory = MemoryStore(project_name=project_name)
         self.graph = GraphStore(project_name=project_name)
+        self.feedback_inbox = []
+
+    def receive_feedback(self, text):
+        self.feedback_inbox.append(text)
 
     def _call_model(self, prompt: str) -> str:
         payload = {
@@ -40,8 +45,18 @@ class CreativeDirectorAgent:
         - suggested canon rules
         - guidance for revision
         """
+        # Inject human feedback if present
+        if self.feedback_inbox:
+            human_feedback = "\n".join(self.feedback_inbox)
+            self.feedback_inbox.clear()
+        else:
+            human_feedback = "None"
+
         prompt = f"""
         You are a Creative Director overseeing a long-running sci-fi narrative.
+
+        Human feedback:
+        \"\"\"{human_feedback}\"\"\"
 
         Continuity issues detected:
         \"\"\"{issues}\"\"\"

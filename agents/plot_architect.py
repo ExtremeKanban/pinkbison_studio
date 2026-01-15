@@ -2,6 +2,7 @@ import requests
 from agents.memory_extractor import MemoryExtractor
 from memory_store import MemoryStore
 from models.heavy_model import generate_with_heavy_model
+from intelligence_bus import IntelligenceBus
 
 
 class PlotArchitect:
@@ -15,6 +16,10 @@ class PlotArchitect:
         self.model_mode = model_mode
         self.extractor = MemoryExtractor(fast_model_url)
         self.memory = MemoryStore(project_name=project_name)
+        self.feedback_inbox = []
+
+    def receive_feedback(self, text):
+        self.feedback_inbox.append(text)
 
 
     def run(
@@ -27,6 +32,14 @@ class PlotArchitect:
         auto_memory: bool = False
     ) -> str:
         """Expand a seed idea into a structured 3‑act outline using project context."""
+        if self.feedback_inbox:
+            # Inject feedback into the context 
+            context = {}
+            context["human_feedback"] = self.feedback_inbox.copy()
+            self.feedback_inbox.clear()
+        else:
+            context = {}
+            
         prompt = f"""
         You are a Plot Architect.
 

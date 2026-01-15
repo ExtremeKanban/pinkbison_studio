@@ -10,6 +10,7 @@ from agents.editor_agent import EditorAgent
 
 from models.heavy_model import generate_with_heavy_model
 from agent_bus import GLOBAL_AGENT_BUS
+from intelligence_bus import IntelligenceBus
 
 
 class ProducerAgent:
@@ -32,6 +33,8 @@ class ProducerAgent:
 
         self.model_mode = model_mode
         self.fast_model_url = fast_model_url
+
+        self.intelligence_bus = IntelligenceBus()
 
         # Instantiate agents with fast model by default.
         # They will internally switch to heavy model when model_mode == "high_quality".
@@ -61,9 +64,29 @@ class ProducerAgent:
             model_mode=model_mode,
         )
         self.editor_agent = EditorAgent(
+            project_name=project_name,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
+
+        self.agents = {
+            "plot_architect": self.plot_architect,
+            "worldbuilder": self.worldbuilder,
+            "character_agent": self.character_agent,
+            "scene_generator": self.scene_generator,
+            "continuity": self.continuity_agent,
+            "editor": self.editor_agent,
+        }
+
+
+    def handle_feedback(self, agent_name, feedback_text):
+        # Log it
+        self.intelligence_bus.add_feedback(agent_name, feedback_text)
+
+        # Route it to the agent
+        agent = self.agents.get(agent_name)
+        if agent:
+            agent.receive_feedback(feedback_text)
 
     # ---------------------------------------------------------
     # Messaging

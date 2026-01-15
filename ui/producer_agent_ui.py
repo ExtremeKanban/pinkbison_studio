@@ -1,11 +1,14 @@
 import streamlit as st
 
-from agents.producer import ProducerAgent
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from agents.producer import ProducerAgent
+
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
 
 
-def render_producer_agent_panel(project_name: str):
+def render_producer_agent_panel(producer):
     """
     Producer Agent UI — single entry point for autonomous workflows:
     - Story Bible
@@ -147,10 +150,9 @@ def render_producer_agent_panel(project_name: str):
             st.info("Provide a seed idea for the Producer Agent.")
             return
 
-        agent = ProducerAgent(
-            project_name=project_name,
-            model_mode=model_mode,   # <-- NEW
-        )
+        producer.model_mode = model_mode
+        agent = producer
+
 
         with st.spinner("Running Producer Agent pipeline..."):
             if goal_mode == "story_bible":
@@ -203,7 +205,7 @@ def render_producer_agent_panel(project_name: str):
 
         # Save into session & project
         st.session_state["producer_last_result"] = result
-        save_project_state(project_name, extract_state_from_session())
+        save_project_state(producer.project_name, extract_state_from_session())
 
         # ---------------------------------------------------------
         # Output Rendering

@@ -1,9 +1,105 @@
-I’m building a modular, agentic AI creative studio in Python with Streamlit and a background Orchestrator. I want you to understand exactly what I’ve already built, what my current architecture looks like, and what’s still on the roadmap—starting with a multi-project orchestrator and full persistence.
+--------------------------------
+QUICK REFERENCE
+--------------------------------
+
+**Project**: Local agentic AI creative studio
+**Current State**: Single-project orchestrator, partial persistence (memory/graph only)
+**Stack**: Python 3.x, Streamlit, FAISS, PyTorch, local Qwen LLMs (vLLM + Transformers)
+**Environment**: Windows 11 + WSL Ubuntu, Nvidia GPU
+
+**Immediate Focus**: Phase 0 - Architecture Review
+**Next Phases**: 1. Full persistence → 2. Multi-project orchestrator → 3. Real-time feedback
+
+**Current Pain Points** (priority order):
+1. Must manually start/stop orchestrator per project
+2. Agent outputs not persisted (lost on restart)
+3. IntelligenceBus messages not persisted
+4. Cannot give feedback during pipeline execution
+5. Project switching is fragile
+6. No isolation in smoke tests
+
+I'm building a modular, agentic AI creative studio in Python with Streamlit and a background Orchestrator. I want you to understand exactly what I've already built, what my current architecture looks like, and what's still on the roadmap—starting with a multi-project orchestrator and full persistence.
 
 Please read this carefully and treat it as the ground truth for this project.
 
 --------------------------------
 CURRENT ARCHITECTURE (WHAT EXISTS TODAY)
+--------------------------------
+
+--------------------------------
+CURRENT FILE STRUCTURE
+--------------------------------
+
+```
+project_root/
+├── agents/
+│   ├── base_agent.py              # Base class for all agents
+│   ├── plot_architect.py
+│   ├── worldbuilder.py
+│   ├── character_agent.py
+│   ├── scene_generator.py
+│   ├── continuity_agent.py
+│   ├── editor_agent.py
+│   ├── producer.py                # Does NOT inherit from AgentBase
+│   ├── creative_director.py
+│   └── memory_extractor.py
+├── models/
+│   ├── fast_model_client.py       # vLLM client (Qwen2.5-3B)
+│   └── heavy_model.py             # Transformers (Qwen2.5-7B)
+├── ui/
+│   ├── character_ui.py
+│   ├── general_playground.py
+│   ├── intelligence_panel.py      # Read-only agent message viewer
+│   ├── memory_add_ui.py
+│   ├── memory_browser_ui.py
+│   ├── memory_search_ui.py
+│   ├── plot_architect_ui.py
+│   ├── producer_agent_ui.py
+│   ├── scene_pipeline_ui.py
+│   ├── sidebar.py
+│   ├── story_bible_ui.py
+│   └── worldbuilder_ui.py
+├── project_manager/
+│   ├── loader.py
+│   ├── registry.py
+│   └── state.py
+├── tests/
+│   ├── smoke_test.py              # Uses default project, no isolation yet
+│   ├── utils.py
+│   └── test_data/
+│       └── sample_inputs.json
+├── graphs/
+│   └── default_project_graph.json # Per-project graph storage
+├── projects/
+│   ├── default_project.json
+│   ├── test_project.json
+│   └── test_project2.json
+├── tasks/
+│   └── default_project_tasks.json
+├── Root files:
+│   ├── orchestrator.py            # Single-project, blocking run_forever()
+│   ├── intelligence_bus.py        # In-memory, per-project, NOT persistent
+│   ├── task_manager.py
+│   ├── memory_store.py            # ✓ PERSISTENT (FAISS + JSON)
+│   ├── graph_store.py             # ✓ PERSISTENT (JSON)
+│   ├── agent_bus.py
+│   ├── run_orchestrator.py
+│   └── studio_ui.py               # Main Streamlit entry point
+└── Memory files (per project):
+    ├── default_project_memory.index
+    ├── default_project_memory_texts.json
+    └── default_project_embeddings.npy
+```
+
+**Key observations**:
+- Only memory files and `graphs/` directory persist data
+- No `project_state/`, `outputs/`, or `bus_history/` directories yet
+- Orchestrator and IntelligenceBus have no persistence mechanism
+- UI fields, agent outputs, and tasks vanish on restart
+- `project_manager/` directory exists but integration unclear
+
+--------------------------------
+CORE COMPONENTS
 --------------------------------
 
 1. Core agents and orchestration
@@ -121,7 +217,7 @@ I have a GraphStore class that is also fully persistent per project. It:
 
 - Stores its data in:
   - `graphs/<project_name>_graph.json`
-- Initializes an empty graph if the file doesn’t exist
+- Initializes an empty graph if the file doesn't exist
 - Maintains:
   - `entities` (character, location, faction, artifact, concept)
   - `relationships`
@@ -153,7 +249,7 @@ Right now, the following are **not** persisted:
 - Producer pipeline results
 - UI fields (seed idea, genre, tone, themes, etc.)
 - Continuity notes (except where manually written into memory/graph)
-- Any “project_state.json” or similar
+- Any "project_state.json" or similar
 
 Only MemoryStore and GraphStore are persistent.
 
@@ -172,7 +268,7 @@ Right now:
 - The UI does not start or manage the orchestrator process
 - The UI does not support real-time updates during long pipelines
 - The UI only shows results after the pipeline completes
-- Feedback is effectively “batch” — I can give feedback after a run, not during
+- Feedback is effectively "batch" – I can give feedback after a run, not during
 
 8. LLM setup
 
@@ -213,7 +309,7 @@ On Windows, I typically have four terminal tabs:
 
 10. Installed dependencies (high-level summary)
 
-In my Windows “multimodal-assistant” environment, I have installed (among many others):
+In my Windows "multimodal-assistant" environment, I have installed (among many others):
 
 - transformers
 - streamlit
@@ -238,7 +334,7 @@ In my Windows “multimodal-assistant” environment, I have installed (among ma
 
 In WSL Ubuntu, I have a separate environment primarily for vLLM and its dependencies.
 
-You don’t need to reason about every package individually, but you should assume I have a full modern Python AI stack available.
+You don't need to reason about every package individually, but you should assume I have a full modern Python AI stack available.
 
 11. Smoke test
 
@@ -252,6 +348,36 @@ I currently have a smoke test, but:
 This is something I want to fix as part of the roadmap.
 
 --------------------------------
+HARDWARE & ENVIRONMENT SPECS
+--------------------------------
+
+**Hardware**:
+- CPU: Intel Core Ultra 7 265F, 20-core, 20-thread
+- GPU: NVIDIA GeForce RTX 5080, 16GB VRAM
+- RAM: 32 GB DDR5
+- Storage: 1.8 TB NVMe SSD (primary)
+
+**Software Environment**:
+- OS: Windows 11 Pro (Build 26200)
+- WSL: Ubuntu 24.04.3 LTS
+- Python (Windows): 3.10.19 (multimodal-assistant conda environment)
+- Python (WSL): 3.10.19 (qwen-server conda environment)
+- CUDA Toolkit: 12.8 (Windows), Driver 591.44
+- PyTorch: 2.7.0+cu128 (CUDA enabled)
+
+**Key Python Packages** (multimodal-assistant environment):
+- Streamlit: 1.52.1
+- Transformers: 4.57.3
+- FAISS: 1.13.2
+- vLLM: 0.13.0 (WSL qwen-server environment)
+
+**Terminal Workflow** (4 tabs):
+1. WSL: vLLM server (Qwen2.5-3B-Instruct) → `localhost:8000`
+2. WSL: Embeddings server (bge-small-en-v1.5) → `localhost:8001`
+3. Windows: Streamlit UI → `localhost:8501`
+4. Windows: Orchestrator process (blocking `run_forever()`)
+
+--------------------------------
 ROADMAP (WHAT I WANT TO BUILD NEXT)
 --------------------------------
 
@@ -261,12 +387,12 @@ Now that you understand what exists today, here is the roadmap, in order.
 
 I want to do a sanity check of the current system architecture
 
-- Looking foraward on the roadmap and seeing where changes will occur, I want to re-evaluate the code architecure
+- Looking forward on the roadmap and seeing where changes will occur, I want to re-evaluate the code architecture
 
 Goals:
 
 - Make changes related to stability and maintainability
-- Create best practices and code guidelines that will keep AI generated code maintaining style, consistance, and quality  
+- Create best practices and code guidelines that will keep AI generated code maintaining style, consistency, and quality  
 
 1. Full persistence layer
 
@@ -278,12 +404,12 @@ I want to add a proper persistence layer so that **everything** important is sav
 - IntelligenceBus messages (full conversation history)
 - Task queue state
 - Continuity notes
-- Canon rules (beyond what’s already in GraphStore)
-- A project-level “project_state.json” or similar
+- Canon rules (beyond what's already in GraphStore)
+- A project-level "project_state.json" or similar
 
 Goals:
 
-- Auto-save on every meaningful change (no manual “Save” button)
+- Auto-save on every meaningful change (no manual "Save" button)
 - Auto-load when a project is opened
 - Project reset (clear or delete a project cleanly)
 - Project switching without corrupting state
@@ -310,7 +436,7 @@ The goal is:
 
 3. Real-time workflow and feedback
 
-I want to move from “batch pipeline” behavior to **real-time, interactive workflows**, including:
+I want to move from "batch pipeline" behavior to **real-time, interactive workflows**, including:
 
 - Background execution of pipelines so the UI stays responsive
 - Live updates in the Intelligence Panel as agents run
@@ -358,7 +484,7 @@ My ultimate goal is to build a **studio-grade, autonomous creative engine** that
 - Maintains a persistent universe (characters, locations, factions, events, canon)
 - Supports multi-book series and long-form narrative continuity
 - Allows real-time human steering via feedback injected into the IntelligenceBus
-- Feels less like “running a script” and more like operating a creative IDE or cockpit
+- Feels less like "running a script" and more like operating a creative IDE or cockpit
 
 I care about:
 
@@ -373,20 +499,65 @@ I care about:
 WHAT I WANT FROM YOU
 --------------------------------
 
-Given all of the above, I want you to:
+**Ground Rules**:
+1. Treat this document as the authoritative snapshot of my current system
+2. Always distinguish between: what exists | what we're designing | what's future work
+3. Provide concrete, file-level changes with clear migration steps
+4. Don't break existing workflows
 
-1. Treat this description as the authoritative snapshot of my current system.
-2. Help me design and implement the next phases, starting with:
-   - Architectural review
-   - A full persistence layer for everything beyond memory and graph
-   - A single multi-project orchestrator that can manage all projects at once
-3. Always clearly distinguish between:
-   - What I already have
-   - What we are designing
-   - What we are planning for later
-4. When proposing changes, give me:
-   - Concrete file-level changes
-   - Clear explanations of how they fit into the architecture
-   - Migration steps that won’t break my existing workflows
+**Your First Task: Phase 0 - Architecture Review**
 
-Let’s start by refining the design for the multi-project orchestrator and the persistence layer, grounded in the actual code and behavior I’ve described here.
+Before we add any new features, I need you to analyze the current architecture and provide:
+
+**Part 1: Critical Analysis** (respond to this first)
+Analyze these specific concerns:
+
+1. **IntelligenceBus Design**
+   - Is in-memory message passing optimal for multi-project orchestration?
+   - Should messages be treated as ephemeral events vs. persistent logs?
+   - How should bus instances be managed in a multi-project context?
+
+2. **Agent Lifecycle Management**
+   - Should agents be singletons per project or created per-task?
+   - What are the implications for memory usage with 10+ active projects?
+   - How should agent state be handled across task executions?
+
+3. **Persistence Strategy**
+   - Given MemoryStore and GraphStore already persist, what's the pattern?
+   - Should we use JSON, SQLite, or another format for ProjectState?
+   - How do we handle concurrent writes in a multi-project orchestrator?
+   - What's the migration path that preserves existing memory/graph data?
+
+4. **Orchestrator Architecture**
+   - Is the blocking `run_forever()` loop appropriate for multi-project?
+   - Should we move to async/await or threading?
+   - How do we prevent one project's slow task from blocking others?
+
+**Part 2: Code Guidelines & Standards** (provide after Part 1)
+Establish project-wide standards for:
+- Error handling patterns
+- Logging conventions (what level, what format)
+- Type hints policy (strict or gradual)
+- Docstring style (Google, NumPy, or reStructuredText)
+- Configuration management approach
+- Testing requirements for new code
+
+**Part 3: Refactoring Recommendations** (provide after Part 2)
+Based on the analysis, provide:
+- Specific files that need refactoring before adding new features
+- Technical debt that will bite us during multi-project implementation
+- Quick wins that improve stability now
+
+**Deliverable Format**:
+Provide a design recommendations document with:
+- Clear architectural decisions with rationale
+- Specific refactoring steps (file-by-file)
+- Risk assessment for each recommendation
+- Estimated complexity (simple/moderate/complex)
+
+**After Phase 0 is complete**, we'll move to:
+- Phase 1: Implementing full persistence layer
+- Phase 2: Multi-project orchestrator refactor
+- Phase 3: Real-time workflow and feedback
+
+**Break your response into these three parts. Start with Part 1 only.**

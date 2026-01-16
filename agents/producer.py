@@ -16,16 +16,17 @@ from intelligence_bus import IntelligenceBus
 class ProducerAgent:
     """
     High-level orchestrator that coordinates other agents to run pipelines.
-    Now supports:
+    Supports:
     - Draft Mode (fast model)
     - High‑Quality Mode (heavy local model)
     """
 
     def __init__(
         self,
-        project_name: str = "default_project",
-        model_mode: str = "draft",
-        fast_model_url: str = "http://localhost:8000/v1/chat/completions",
+        project_name: str,
+        intelligence_bus,
+        fast_model_url: str,
+        model_mode: str,
     ):
         self.project_name = project_name
         self.name = "producer"
@@ -33,53 +34,50 @@ class ProducerAgent:
 
         self.model_mode = model_mode
         self.fast_model_url = fast_model_url
+        self.intelligence_bus = intelligence_bus
 
-        self.intelligence_bus = IntelligenceBus()
-
-        # Instantiate agents with fast model by default.
-        # They will internally switch to heavy model when model_mode == "high_quality".
+        # Instantiate sub‑agents
         self.plot_architect = PlotArchitect(
             project_name=project_name,
-            intelligence_bus=self.intelligence_bus,
+            intelligence_bus=intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
 
         self.worldbuilder = WorldbuilderAgent(
             project_name=project_name,
-            intelligence_bus=self.intelligence_bus,
+            intelligence_bus=intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
 
         self.character_agent = CharacterAgent(
             project_name=project_name,
-            intelligence_bus=self.intelligence_bus,
+            intelligence_bus=intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
 
         self.scene_generator = SceneGeneratorAgent(
             project_name=project_name,
-            intelligence_bus=self.intelligence_bus,
+            intelligence_bus=intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
 
         self.continuity_agent = ContinuityAgent(
             project_name=project_name,
-            intelligence_bus=self.intelligence_bus,
+            intelligence_bus=intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
 
         self.editor_agent = EditorAgent(
             project_name=project_name,
-            intelligence_bus=self.intelligence_bus,
+            intelligence_bus=intelligence_bus,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
-
 
         self.agents = {
             "plot_architect": self.plot_architect,
@@ -99,6 +97,12 @@ class ProducerAgent:
         agent = self.agents.get(agent_name)
         if agent:
             agent.receive_feedback(feedback_text)
+
+    def poll_agent_messages(self):
+        msgs = self.intelligence_bus.get_messages_for("producer", since_id=self._last_msg_id)
+        if msgs:
+            self._last_msg_id = msgs[-1]["id"]
+        return msgs
 
     # ---------------------------------------------------------
     # Messaging

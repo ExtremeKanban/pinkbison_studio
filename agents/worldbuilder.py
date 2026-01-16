@@ -92,4 +92,10 @@ class WorldbuilderAgent(AgentBase):
             for fact in facts:
                 self.memory.add(fact)
 
+        self.send_message(
+            recipient="character_agent",
+            msg_type="WORLD_READY",
+            payload={"world": world_doc}
+        )
+
         return world_doc

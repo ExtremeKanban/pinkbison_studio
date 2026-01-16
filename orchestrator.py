@@ -7,6 +7,8 @@ from agent_bus import GLOBAL_AGENT_BUS
 from task_manager import TaskManager, TaskStatus
 from graph_store import GraphStore
 from memory_store import MemoryStore
+from intelligence_bus import IntelligenceBus
+
 
 
 class ProjectOrchestrator:
@@ -19,13 +21,34 @@ class ProjectOrchestrator:
         self.project_name = project_name
         self.poll_interval = poll_interval
 
-        self.producer = ProducerAgent(project_name=project_name)
-        self.creative_director = CreativeDirectorAgent(project_name=project_name)
+        # === Option B: Hardcoded defaults for now ===
+        self.fast_model_url = "http://localhost:8000/v1/chat/completions"
+        self.model_mode = "fast"
+
+        # Shared intelligence bus
+        self.intelligence_bus = IntelligenceBus(project_name)
+
+        # === Updated agent constructors ===
+        self.producer = ProducerAgent(
+            project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
+            fast_model_url=self.fast_model_url,
+            model_mode=self.model_mode,
+        )
+
+        self.creative_director = CreativeDirectorAgent(
+            project_name=project_name,
+            intelligence_bus=self.intelligence_bus,
+            fast_model_url=self.fast_model_url,
+            model_mode=self.model_mode,
+        )
+
         self.tasks = TaskManager(project_name=project_name)
         self.graph = GraphStore(project_name=project_name)
         self.memory = MemoryStore(project_name=project_name)
 
         self._running = False
+
 
     # ---------- Message ingestion → tasks ----------
 

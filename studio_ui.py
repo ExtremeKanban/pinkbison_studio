@@ -14,7 +14,7 @@ from ui.memory_search_ui import render_memory_search
 from ui.memory_add_ui import render_memory_add
 from ui.memory_browser_ui import render_memory_browser
 from agents.producer import ProducerAgent
-
+from intelligence_bus import IntelligenceBus
 
 # Initialize session state for project data
 initialize_session_state()
@@ -26,7 +26,20 @@ if "current_project" not in st.session_state:
 # Sidebar (project switching happens here)
 project_name = render_sidebar()
 
-producer = ProducerAgent(project_name)
+
+
+fast_model_url = "http://localhost:8000/v1/chat/completions"
+model_mode = "fast"
+
+bus = IntelligenceBus(project_name)
+
+producer = ProducerAgent(
+    project_name=project_name,
+    intelligence_bus=bus,
+    fast_model_url=fast_model_url,
+    model_mode=model_mode,
+)
+
 
 
 st.title("PinkBison Creative Studio")

@@ -10,10 +10,24 @@ from intelligence_bus import IntelligenceBus
 from agents.base_agent import AgentBase
 
 class CreativeDirectorAgent(AgentBase):
-    def __init__(self, project_name, intelligence_bus, fast_model_url):
-        super().__init__("creative_director", project_name, intelligence_bus, fast_model_url, model_mode="draft")
+    def __init__(
+        self,
+        project_name: str,
+        intelligence_bus,
+        fast_model_url: str,
+        model_mode: str,
+    ):
+        super().__init__(
+            "creative_director",
+            project_name,
+            intelligence_bus,
+            fast_model_url,
+            model_mode=model_mode,
+        )
+
         self.memory = MemoryStore(project_name)
         self.graph = GraphStore(project_name)
+
 
 
     def receive_feedback(self, text):

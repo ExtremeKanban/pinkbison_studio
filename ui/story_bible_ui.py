@@ -2,10 +2,23 @@ import streamlit as st
 from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
-
+from intelligence_bus import IntelligenceBus
 
 def render_story_bible_pipeline(project_name):
-    agent = ProducerAgent(project_name)
+
+    fast_model_url = "http://localhost:8000/v1"
+    model_mode = "fast"
+
+    if "producer" not in st.session_state:
+        st.session_state["producer"] = ProducerAgent(
+            project_name=project_name,
+            intelligence_bus=IntelligenceBus(project_name),
+            fast_model_url=fast_model_url,
+            model_mode=model_mode,
+        )
+
+    agent = st.session_state["producer"]
+
 
     st.header("Story Bible Pipeline (Producer Agent)")
 

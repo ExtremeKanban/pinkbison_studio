@@ -78,4 +78,10 @@ class CharacterAgent(AgentBase):
             for fact in facts:
                 self.memory.add(fact)
 
+        self.send_message(
+            recipient="scene_generator",
+            msg_type="CHARACTERS_READY",
+            payload={"characters": characters_doc}
+        )
+
         return characters_doc

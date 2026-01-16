@@ -16,7 +16,7 @@ def render_intelligence_panel(producer):
                 agent = msg.get("agent", "system")
                 msg_type = msg.get("type", "info")
                 st.markdown(f"**{agent}** — *{msg_type}*")
-                st.write(msg["content"])
+                st.write(msg["payload"])
                 st.markdown("---")
 
         # ======================================================

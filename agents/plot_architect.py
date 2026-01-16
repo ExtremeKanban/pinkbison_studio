@@ -77,4 +77,10 @@ class PlotArchitect(AgentBase):
             for fact in facts:
                 self.memory.add(fact)
 
+        self.send_message(
+            recipient="worldbuilder",
+            msg_type="OUTLINE_READY",
+            payload={"outline": outline}
+        )
+
         return outline

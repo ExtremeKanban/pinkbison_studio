@@ -87,4 +87,10 @@ class SceneGeneratorAgent(AgentBase):
             for fact in facts:
                 self.memory.add(fact)
 
+        self.send_message(
+            recipient="producer",
+            msg_type="SCENE_READY",
+            payload={"scene": scene_text}
+        )
+
         return scene_text

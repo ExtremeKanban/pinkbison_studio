@@ -2,12 +2,23 @@ import streamlit as st
 from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
+from intelligence_bus import IntelligenceBus
 
 def render_plot_architect(project_name):
 
     # Ensure a shared ProducerAgent exists
     if "producer" not in st.session_state:
-        st.session_state["producer"] = ProducerAgent(project_name)
+        fast_model_url = "http://localhost:8000/v1"
+        model_mode = "fast"
+
+        if "producer" not in st.session_state:
+            st.session_state["producer"] = ProducerAgent(
+                project_name=project_name,
+                intelligence_bus=IntelligenceBus(project_name),
+                fast_model_url=fast_model_url,
+                model_mode=model_mode,
+            )
+
 
     producer = st.session_state["producer"]
     agent = producer.plot_architect

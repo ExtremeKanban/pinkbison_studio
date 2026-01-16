@@ -1,0 +1,62 @@
+# PinkBison Creative Studio - AI Assistant Guidelines
+
+## Project Context
+This is an agentic AI creative writing studio using local LLMs (Qwen 2.5) with a multi-agent architecture.
+
+## Critical Rules - ALWAYS Follow
+1. Read `docs/standards/CODE_STANDARDS.md` before generating any code
+2. All new code must follow existing patterns - check similar files first
+3. Never break backward compatibility without explicit approval
+4. All agent code must use EventBus + AuditLog (never raw IntelligenceBus)
+5. All file operations must use ProjectState, not raw JSON manipulation
+
+## Architecture Patterns
+- **Agents**: Stateless, created per-task via AgentFactory
+- **Persistence**: ProjectState for state, AuditLog for history, EventBus for real-time
+- **Models**: Inject via factory, never instantiate in agents
+- **UI**: Always use ProducerAgent, never instantiate agents directly
+
+## Code Style
+- Type hints: Required for all function signatures
+- Docstrings: Google style for all public functions
+- Error handling: Always use try-except with specific exceptions
+- Logging: Use audit_log.append() for agent actions, print() for debug only
+
+## File Modification Rules
+- New features: Add files, don't modify existing unless necessary
+- Breaking changes: Require migration guide in `docs/migrations/`
+- UI changes: Must not break existing workflows
+- Agent changes: Must maintain signature compatibility
+
+## Testing Requirements
+- New agents: Must have factory method + basic test
+- New pipelines: Must work with existing ProducerAgent patterns
+- UI changes: Must pass smoke test
+- Breaking changes: Must have migration test
+
+## Common Mistakes to Avoid
+- ❌ Don't use `intelligence_bus` - it's deprecated
+- ❌ Don't store agent instances - use AgentFactory
+- ❌ Don't use `feedback_inbox` - use EventBus
+- ❌ Don't write to `projects/*.json` - use ProjectState
+- ❌ Don't import from removed modules
+
+## When Suggesting Code
+1. Show complete file contents when possible (user preference)
+2. Specify environment (Windows/WSL, conda env) for all commands
+3. Explain architectural decisions, not just implementation
+4. Provide migration path for breaking changes
+5. Reference existing patterns from similar files
+
+## Project-Specific Imports
+```python
+# Standard agent pattern:
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+from agents.base_agent import AgentBase
+
+# Standard UI pattern:
+from agents.producer import ProducerAgent
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+```

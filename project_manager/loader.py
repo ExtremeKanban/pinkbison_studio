@@ -1,136 +1,168 @@
+"""
+Project loader now uses ProjectState for unified state management.
+Maintains backward compatibility with old projects/*.json format.
+"""
+
 import os
 import json
 from typing import Dict, Any, List
+from pathlib import Path
 
-PROJECTS_DIR = "projects"
+from core.project_state import ProjectState
+
+# Legacy directory for backward compatibility
+LEGACY_PROJECTS_DIR = "projects"
 
 
-def ensure_projects_dir() -> None:
-    if not os.path.exists(PROJECTS_DIR):
-        os.makedirs(PROJECTS_DIR)
+def ensure_legacy_dir() -> None:
+    """Ensure legacy projects directory exists"""
+    if not os.path.exists(LEGACY_PROJECTS_DIR):
+        os.makedirs(LEGACY_PROJECTS_DIR)
 
 
-def get_project_path(project_name: str) -> str:
-    ensure_projects_dir()
+def get_legacy_project_path(project_name: str) -> str:
+    """Get path to legacy project JSON"""
+    ensure_legacy_dir()
     safe_name = project_name.strip().replace(" ", "_")
-    return os.path.join(PROJECTS_DIR, f"{safe_name}.json")
+    return os.path.join(LEGACY_PROJECTS_DIR, f"{safe_name}.json")
 
 
 def project_exists(project_name: str) -> bool:
-    return os.path.exists(get_project_path(project_name))
+    """Check if project exists (new or legacy format)"""
+    # Check new format
+    new_path = Path("project_state") / project_name / "state.json"
+    if new_path.exists():
+        return True
+    
+    # Check legacy format
+    legacy_path = Path(get_legacy_project_path(project_name))
+    return legacy_path.exists()
 
 
 def list_projects() -> List[str]:
-    ensure_projects_dir()
-    projects = []
-    for fname in os.listdir(PROJECTS_DIR):
+    """List all projects (new and legacy)"""
+    projects = set()
+    
+    # List new format projects
+    new_dir = Path("project_state")
+    if new_dir.exists():
+        for item in new_dir.iterdir():
+            if item.is_dir() and (item / "state.json").exists():
+                projects.add(item.name)
+    
+    # List legacy format projects
+    ensure_legacy_dir()
+    for fname in os.listdir(LEGACY_PROJECTS_DIR):
         if fname.endswith(".json"):
-            projects.append(os.path.splitext(fname)[0])
-    projects.sort()
-    return projects
+            projects.add(os.path.splitext(fname)[0])
+    
+    return sorted(list(projects))
 
 
 def load_project_state(project_name: str) -> Dict[str, Any]:
     """
-    Load a project's UI/state from JSON.
-    If it does not exist, return a fresh default state.
+    Load project state, handling both new and legacy formats.
+    Migrates legacy format to new format automatically.
     """
-    path = get_project_path(project_name)
-    if not os.path.exists(path):
-        return default_project_state(project_name)
-
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    return merge_with_defaults(project_name, data)
+    # Try new format first
+    new_path = Path("project_state") / project_name / "state.json"
+    if new_path.exists():
+        state = ProjectState.load(project_name)
+        return state.to_dict()
+    
+    # Try legacy format
+    legacy_path = Path(get_legacy_project_path(project_name))
+    if legacy_path.exists():
+        with open(legacy_path, 'r', encoding='utf-8') as f:
+            legacy_data = json.load(f)
+        
+        # Migrate to new format
+        state = _migrate_from_legacy(project_name, legacy_data)
+        state.save()  # Save in new format
+        
+        return state.to_dict()
+    
+    # No existing project, create default
+    state = ProjectState.create_default(project_name)
+    state.save()
+    return state.to_dict()
 
 
 def save_project_state(project_name: str, state: Dict[str, Any]) -> None:
-    """
-    Save a project's UI/state to JSON.
-    """
-    path = get_project_path(project_name)
-    ensure_projects_dir()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+    """Save project state using new format"""
+    project_state = ProjectState.from_dict(state)
+    project_state.save()
 
 
 def duplicate_project(src_project: str, dst_project: str) -> None:
-    """
-    Duplicate src_project.json to dst_project.json (UI/state only).
-    Memory (FAISS + embeddings) will be handled separately by MemoryStore when you use the new project.
-    """
+    """Duplicate project (handles both formats)"""
     if not project_exists(src_project):
         raise ValueError(f"Source project '{src_project}' does not exist.")
+    
+    # Load source state
+    src_state = load_project_state(src_project)
+    
+    # Update project name
+    src_state['project_name'] = dst_project
+    
+    # Save as new project
+    save_project_state(dst_project, src_state)
 
-    src_path = get_project_path(src_project)
-    dst_path = get_project_path(dst_project)
-
-    with open(src_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    save_project_state(dst_project, data)
 
 def delete_project(project_name: str) -> None:
-    """
-    Delete a project's JSON file.
-    Does NOT delete memory files — those are handled by MemoryStore.
-    """
-    path = get_project_path(project_name)
-    if os.path.exists(path):
-        os.remove(path)
+    """Delete project (handles both formats)"""
+    # Delete new format
+    new_dir = Path("project_state") / project_name
+    if new_dir.exists():
+        import shutil
+        shutil.rmtree(new_dir)
+    
+    # Delete legacy format
+    legacy_path = Path(get_legacy_project_path(project_name))
+    if legacy_path.exists():
+        legacy_path.unlink()
 
 
+def _migrate_from_legacy(project_name: str, legacy_data: Dict[str, Any]) -> ProjectState:
+    """Migrate legacy project JSON to new ProjectState format"""
+    from core.project_state import ProjectMeta
+    
+    # Extract metadata
+    meta_data = legacy_data.get('meta', {})
+    meta = ProjectMeta(
+        genre=meta_data.get('genre', 'Sci-Fi'),
+        tone=meta_data.get('tone', 'Epic, serious'),
+        themes=meta_data.get('themes', 'Destiny, sacrifice, technology vs humanity'),
+        setting=meta_data.get('setting', 'Far future galaxy')
+    )
+    
+    # Create state
+    state = ProjectState(
+        project_name=project_name,
+        meta=meta,
+        outline=legacy_data.get('outline', ''),
+        world=legacy_data.get('world', ''),
+        characters=legacy_data.get('characters', ''),
+        scene_raw=legacy_data.get('scene_raw', ''),
+        scene_continuity=legacy_data.get('scene_continuity', ''),
+        scene_final=legacy_data.get('scene_final', ''),
+        pipeline_outline=legacy_data.get('pipeline_outline', ''),
+        pipeline_world=legacy_data.get('pipeline_world', ''),
+        pipeline_characters=legacy_data.get('pipeline_characters', ''),
+        inputs=legacy_data.get('inputs', {}),
+    )
+    
+    return state
+
+
+# Legacy compatibility functions
 def default_project_state(project_name: str) -> Dict[str, Any]:
-    """
-    Default empty state for a new project.
-    """
-    return {
-        "project_name": project_name,
-        "meta": {
-            "genre": "Sci‑Fi",
-            "tone": "Epic, serious",
-            "themes": "Destiny, sacrifice, technology vs humanity",
-            "setting": "Far future galaxy"
-        },
-        "outline": "",
-        "world": "",
-        "characters": "",
-        "scene_raw": "",
-        "scene_continuity": "",
-        "scene_final": "",
-        "pipeline_outline": "",
-        "pipeline_world": "",
-        "pipeline_characters": "",
-        "inputs": {
-            "seed_idea_plot": "",
-            "outline_for_world": "",
-            "world_notes_for_chars": "",
-            "outline_for_chars": "",
-            "scene_prompt": "",
-            "scene_outline_snippet": "",
-            "scene_world_notes": "",
-            "scene_character_notes": "",
-            "seed_idea_pipeline": "",
-            "memory_search_query": "",
-            "new_memory_text": ""
-        }
-    }
+    """Legacy function - now uses ProjectState"""
+    state = ProjectState.create_default(project_name)
+    return state.to_dict()
 
 
 def merge_with_defaults(project_name: str, loaded: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    If we add new fields later, ensure old project files still work by merging with defaults.
-    """
-    defaults = default_project_state(project_name)
-
-    def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-        result = dict(base)
-        for k, v in override.items():
-            if isinstance(v, dict) and isinstance(result.get(k), dict):
-                result[k] = deep_merge(result[k], v)
-            else:
-                result[k] = v
-        return result
-
-    return deep_merge(defaults, loaded)
+    """Legacy function - now uses ProjectState migration"""
+    # This is handled by ProjectState.load automatically
+    return loaded

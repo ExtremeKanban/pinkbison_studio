@@ -2,16 +2,28 @@ import streamlit as st
 from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
 
 
 def render_character_agent(project_name):
-
-    # Ensure a shared ProducerAgent exists
+    # Ensure ProducerAgent exists
     if "producer" not in st.session_state:
-        st.session_state["producer"] = ProducerAgent(project_name)
+        fast_model_url = "http://localhost:8000/v1/chat/completions"
+        model_mode = "fast"
+        
+        event_bus = EventBus(project_name)
+        audit_log = AuditLog(project_name)
+
+        st.session_state["producer"] = ProducerAgent(
+            project_name=project_name,
+            event_bus=event_bus,
+            audit_log=audit_log,
+            fast_model_url=fast_model_url,
+            model_mode=model_mode,
+        )
 
     producer = st.session_state["producer"]
-    agent = producer.character_agent
 
     st.header("Character Agent")
 
@@ -27,6 +39,9 @@ def render_character_agent(project_name):
     if st.button("Generate Character Bible"):
         outline = st.session_state["outline_for_chars"].strip()
         if outline:
+            # Create fresh agent instance
+            agent = producer.agent_factory.create_character_agent()
+            
             characters_doc = agent.run(
                 outline=outline,
                 world_notes=st.session_state["world_notes_for_chars"],

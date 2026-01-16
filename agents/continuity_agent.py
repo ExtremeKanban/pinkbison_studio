@@ -2,34 +2,32 @@ import requests
 from memory_store import MemoryStore
 from agent_bus import GLOBAL_AGENT_BUS
 from models.heavy_model import generate_with_heavy_model
-from intelligence_bus import IntelligenceBus
-
-
 from agents.base_agent import AgentBase
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+
 
 class ContinuityAgent(AgentBase):
-    def __init__(self, project_name, intelligence_bus, fast_model_url, model_mode):
-        super().__init__("continuity", project_name, intelligence_bus, fast_model_url, model_mode)
+    def __init__(self, project_name, event_bus: EventBus, audit_log: AuditLog,
+                 fast_model_url, model_mode):
+        super().__init__("continuity", project_name, event_bus, audit_log,
+                        fast_model_url, model_mode)
         self.memory = MemoryStore(project_name)
-
-
-    def receive_feedback(self, text):
-        self.feedback_inbox.append(text)
-
 
     def run(self, new_text: str) -> str:
         """
         Check new_text against project memory for contradictions and adjust if needed.
         Returns a revised version that is as consistent as possible.
         """
-        if self.feedback_inbox:
-            # Inject feedback into the context 
-            context = {}
-            context["human_feedback"] = self.feedback_inbox.copy()
-            self.feedback_inbox.clear()
-        else:
-            context = {}
-            
+        
+        # Check for feedback from EventBus
+        recent_messages = self.get_recent_messages(limit=5)
+        feedback_texts = [
+            msg.get('content', '') 
+            for msg in recent_messages 
+            if msg.get('type') == 'feedback'
+        ]
+        
         memory_context = self.memory.search("core canon rules events characters world", k=20)
         memory_text = "\n".join(memory_context) if memory_context else "None yet."
 
@@ -54,13 +52,14 @@ class ContinuityAgent(AgentBase):
         - First, briefly list any issues you found.
         - Then provide the fully revised text under a heading: REVISED TEXT
         """
+        
+        if feedback_texts:
+            prompt += f"\n\nRecent feedback:\n" + "\n".join(feedback_texts)
 
-        # --- Model selection ---
+        # Model selection
         if self.model_mode == "high_quality":
-            # Use heavy local 7B model for deeper canon enforcement
             checked_text = generate_with_heavy_model(prompt)
         else:
-            # Use fast model via HTTP
             payload = {
                 "model": "Qwen/Qwen2.5-3B-Instruct",
                 "messages": [{"role": "user", "content": prompt}],
@@ -69,15 +68,14 @@ class ContinuityAgent(AgentBase):
             response = requests.post(self.fast_model_url, json=payload)
             checked_text = response.json()["choices"][0]["message"]["content"]
 
-
-        # --- Extract issues ---
+        # Extract issues
         issues = ""
         if "REVISED TEXT" in checked_text:
             issues = checked_text.split("REVISED TEXT")[0].strip()
         else:
             issues = "No explicit issues section found."
 
-        # --- Send message to ProducerAgent ---
+        # Send message to ProducerAgent via old GLOBAL_AGENT_BUS for compatibility
         GLOBAL_AGENT_BUS.send(
             project_name=self.project_name,
             sender=self.name,

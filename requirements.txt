@@ -1,0 +1,25 @@
+# Core dependencies
+streamlit>=1.52.0
+torch>=2.7.0
+transformers>=4.57.0
+faiss-cpu>=1.13.0
+requests>=2.31.0
+
+# File handling
+filelock>=3.13.0
+
+# Existing dependencies (from your environment)
+pdfplumber
+openpyxl
+instructor
+jsonref
+chromadb
+embedchain
+langchain
+langgraph
+semantic-kernel
+fastapi
+uvicorn
+tiktoken
+huggingface-hub
+rich

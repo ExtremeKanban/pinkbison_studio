@@ -2,24 +2,28 @@ import streamlit as st
 from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
-from intelligence_bus import IntelligenceBus
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+
 
 def render_scene_pipeline(project_name):
-    
-
-    fast_model_url = "http://localhost:8000/v1"
-    model_mode = "fast"
-
+    # Ensure ProducerAgent exists
     if "producer" not in st.session_state:
+        fast_model_url = "http://localhost:8000/v1/chat/completions"
+        model_mode = "fast"
+        
+        event_bus = EventBus(project_name)
+        audit_log = AuditLog(project_name)
+
         st.session_state["producer"] = ProducerAgent(
             project_name=project_name,
-            intelligence_bus=IntelligenceBus(project_name),
+            event_bus=event_bus,
+            audit_log=audit_log,
             fast_model_url=fast_model_url,
             model_mode=model_mode,
         )
 
-    agent = st.session_state["producer"]
-
+    producer = st.session_state["producer"]
 
     st.header("Scene Pipeline (Scene Generator → Continuity → Editor)")
 
@@ -39,7 +43,7 @@ def render_scene_pipeline(project_name):
     if st.button("Generate Scene Pipeline"):
         prompt = st.session_state["scene_prompt"].strip()
         if prompt:
-            results = agent.generate_scene_with_checks(
+            results = producer.generate_scene_with_checks(
                 scene_prompt=prompt,
                 outline_snippet=st.session_state["scene_outline_snippet"],
                 world_notes=st.session_state["scene_world_notes"],

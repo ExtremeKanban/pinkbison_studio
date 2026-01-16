@@ -1,22 +1,33 @@
+"""
+Intelligence Panel - displays EventBus and AuditLog messages.
+"""
+
 import streamlit as st
 
+
 def render_intelligence_panel(producer):
+    """
+    Display agent messages from EventBus and AuditLog.
+    """
     with st.expander("🧠 Project Intelligence Panel", expanded=True):
 
         # ======================================================
-        # 1. Agent Message Stream
+        # 1. Recent EventBus Messages (live)
         # ======================================================
-        st.subheader("📡 Agent Message Stream")
+        st.subheader("📡 Recent Agent Messages (Live)")
 
-        messages = producer.intelligence_bus.messages[-100:]
-        if not messages:
-            st.write("No messages yet.")
+        recent_events = list(producer.event_bus.buffer)[-50:]
+        
+        if not recent_events:
+            st.write("No recent messages.")
         else:
-            for msg in messages:
-                agent = msg.get("agent", "system")
-                msg_type = msg.get("type", "info")
-                st.markdown(f"**{agent}** — *{msg_type}*")
-                st.write(msg["payload"])
+            for event in recent_events:
+                sender = event.sender
+                recipient = event.recipient
+                msg_type = event.type
+                
+                st.markdown(f"**{sender} → {recipient}** — *{msg_type}*")
+                st.write(event.payload)
                 st.markdown("---")
 
         # ======================================================
@@ -24,7 +35,16 @@ def render_intelligence_panel(producer):
         # ======================================================
         st.subheader("🎤 Send Feedback to Agents")
 
-        for agent_name in producer.agents.keys():
+        agent_names = [
+            "plot_architect",
+            "worldbuilder",
+            "character_agent",
+            "scene_generator",
+            "continuity",
+            "editor",
+        ]
+
+        for agent_name in agent_names:
             st.markdown(f"### {agent_name}")
 
             feedback = st.text_area(
@@ -33,73 +53,44 @@ def render_intelligence_panel(producer):
             )
 
             if st.button(f"Send to {agent_name}", key=f"send_{agent_name}"):
-                producer.handle_feedback(agent_name, feedback)
-                st.success("Feedback sent")
+                if feedback.strip():
+                    producer.handle_feedback(agent_name, feedback.strip())
+                    st.success(f"Feedback sent to {agent_name}")
+                else:
+                    st.info("Enter feedback text first")
 
         # ======================================================
-        # 3. Task Queue
+        # 3. AuditLog Search (historical)
         # ======================================================
-        st.subheader("📋 Task Queue")
+        st.subheader("🔍 Audit Log Search")
 
-        tasks = producer.intelligence_bus.task_queue
-        if not tasks:
-            st.write("No tasks queued.")
-        else:
-            for task in tasks:
-                st.json(task)
-                st.markdown("---")
+        search_type = st.selectbox(
+            "Filter by event type",
+            ["all", "agent_message", "user_feedback", "agent_log"],
+            key="audit_search_type"
+        )
 
-        # ======================================================
-        # 4. Continuity Notes
-        # ======================================================
-        st.subheader("🔍 Continuity Notes")
+        search_limit = st.number_input(
+            "Max results",
+            min_value=10,
+            max_value=1000,
+            value=50,
+            key="audit_search_limit"
+        )
 
-        continuity = producer.intelligence_bus.continuity_notes
-        if not continuity:
-            st.write("No continuity notes yet.")
-        else:
-            for note in continuity:
-                st.write(note)
-                st.markdown("---")
-
-        # ======================================================
-        # 5. Canon Rules
-        # ======================================================
-        st.subheader("📜 Canon Rules")
-
-        canon = producer.intelligence_bus.canon_rules
-        if not canon:
-            st.write("No canon rules yet.")
-        else:
-            for rule in canon:
-                st.write(rule)
-                st.markdown("---")
-
-        # ======================================================
-        # 6. Memory Events
-        # ======================================================
-        st.subheader("🧠 Memory Events")
-
-        memory_events = producer.intelligence_bus.memory_events
-        if not memory_events:
-            st.write("No memory events yet.")
-        else:
-            for event in memory_events:
-                st.json(event)
-                st.markdown("---")
-
-        # ======================================================
-        # 7. Agent-to-Agent Messages
-        # ======================================================
-        st.subheader("🔗 Agent Conversations")
-
-        agent_msgs = producer.intelligence_bus.agent_messages
-        if not agent_msgs:
-            st.write("No agent-to-agent messages yet.")
-        else:
-            for msg in agent_msgs:
-                sender = msg.get("sender", "unknown")
-                recipient = msg.get("recipient", "unknown")
-                st.markdown(f"**{sender} → {recipient}**")
-                st.write(msg.get("content", ""))
-                st.markdown("---")
+        if st.button("Search Audit Log"):
+            event_type = None if search_type == "all" else search_type
+            
+            results = producer.audit_log.search(
+                event_type=event_type,
+                limit=search_limit
+            )
+            
+            if not results:
+                st.write("No results found.")
+            else:
+                st.write(f"Found {len(results)} entries:")
+                for entry in results:
+                    st.markdown(f"**{entry.sender} → {entry.recipient}** — *{entry.event_type}* ({entry.timestamp})")
+                    st.json(entry.payload)
+                    st.markdown("---")

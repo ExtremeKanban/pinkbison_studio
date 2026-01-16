@@ -2,29 +2,30 @@ import streamlit as st
 from agents.producer import ProducerAgent
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
-from intelligence_bus import IntelligenceBus
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+
 
 def render_plot_architect(project_name):
-
-    # Ensure a shared ProducerAgent exists
+    # Ensure ProducerAgent exists with EventBus
     if "producer" not in st.session_state:
-        fast_model_url = "http://localhost:8000/v1"
+        fast_model_url = "http://localhost:8000/v1/chat/completions"
         model_mode = "fast"
+        
+        event_bus = EventBus(project_name)
+        audit_log = AuditLog(project_name)
 
-        if "producer" not in st.session_state:
-            st.session_state["producer"] = ProducerAgent(
-                project_name=project_name,
-                intelligence_bus=IntelligenceBus(project_name),
-                fast_model_url=fast_model_url,
-                model_mode=model_mode,
-            )
-
+        st.session_state["producer"] = ProducerAgent(
+            project_name=project_name,
+            event_bus=event_bus,
+            audit_log=audit_log,
+            fast_model_url=fast_model_url,
+            model_mode=model_mode,
+        )
 
     producer = st.session_state["producer"]
-    agent = producer.plot_architect
-
+    
     st.header("Plot Architect Agent")
-
 
     st.text_area("Seed idea for the Plot Architect", key="seed_idea_plot")
 
@@ -37,6 +38,9 @@ def render_plot_architect(project_name):
     if st.button("Generate 3‑Act Outline"):
         seed = st.session_state["seed_idea_plot"].strip()
         if seed:
+            # Create fresh agent instance
+            agent = producer.agent_factory.create_plot_architect()
+            
             outline = agent.run(
                 seed,
                 st.session_state["project_genre"],

@@ -4,34 +4,18 @@ from typing import List, Dict, Any
 from memory_store import MemoryStore
 from graph_store import GraphStore
 from agent_bus import GLOBAL_AGENT_BUS
-from intelligence_bus import IntelligenceBus
-
-
 from agents.base_agent import AgentBase
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+
 
 class CreativeDirectorAgent(AgentBase):
-    def __init__(
-        self,
-        project_name: str,
-        intelligence_bus,
-        fast_model_url: str,
-        model_mode: str,
-    ):
-        super().__init__(
-            "creative_director",
-            project_name,
-            intelligence_bus,
-            fast_model_url,
-            model_mode=model_mode,
-        )
-
+    def __init__(self, project_name: str, event_bus: EventBus, audit_log: AuditLog,
+                 fast_model_url: str, model_mode: str):
+        super().__init__("creative_director", project_name, event_bus, audit_log,
+                        fast_model_url, model_mode)
         self.memory = MemoryStore(project_name)
         self.graph = GraphStore(project_name)
-
-
-
-    def receive_feedback(self, text):
-        self.feedback_inbox.append(text)
 
     def _call_model(self, prompt: str) -> str:
         payload = {
@@ -48,12 +32,16 @@ class CreativeDirectorAgent(AgentBase):
         - suggested canon rules
         - guidance for revision
         """
-        # Inject human feedback if present
-        if self.feedback_inbox:
-            human_feedback = "\n".join(self.feedback_inbox)
-            self.feedback_inbox.clear()
-        else:
-            human_feedback = "None"
+        
+        # Check for feedback from EventBus
+        recent_messages = self.get_recent_messages(limit=5)
+        feedback_texts = [
+            msg.get('content', '') 
+            for msg in recent_messages 
+            if msg.get('type') == 'feedback'
+        ]
+        
+        human_feedback = "\n".join(feedback_texts) if feedback_texts else "None"
 
         prompt = f"""
         You are a Creative Director overseeing a long-running sci-fi narrative.
@@ -80,7 +68,8 @@ class CreativeDirectorAgent(AgentBase):
         }}
         """
         raw = self._call_model(prompt)
-        # We'll trust the model to output JSON-like; you can harden this later.
+        
+        # Try to parse JSON
         try:
             import json
             data = json.loads(raw)

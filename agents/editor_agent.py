@@ -1,36 +1,29 @@
 import requests
 from models.heavy_model import generate_with_heavy_model
-from intelligence_bus import IntelligenceBus
-
-
 from agents.base_agent import AgentBase
+from core.event_bus import EventBus
+from core.audit_log import AuditLog
+
 
 class EditorAgent(AgentBase):
-    def __init__(self, project_name, intelligence_bus, fast_model_url, model_mode):
-        super().__init__("editor", project_name, intelligence_bus, fast_model_url, model_mode)
+    def __init__(self, project_name, event_bus: EventBus, audit_log: AuditLog,
+                 fast_model_url, model_mode):
+        super().__init__("editor", project_name, event_bus, audit_log,
+                        fast_model_url, model_mode)
 
-
-    def receive_feedback(self, text):
-        self.feedback_inbox.append(text)
-
-
-    def run(
-        self,
-        text: str,
-        style_goal: str = "clear, vivid, emotionally resonant prose"
-    ) -> str:
+    def run(self, text: str, style_goal: str = "clear, vivid, emotionally resonant prose") -> str:
         """
         Edit and improve text for style, clarity, pacing, and emotional impact.
         """
-
-        if self.feedback_inbox:
-            # Inject feedback into the context 
-            context = {}
-            context["human_feedback"] = self.feedback_inbox.copy()
-            self.feedback_inbox.clear()
-        else:
-            context = {}
-            
+        
+        # Check for feedback from EventBus
+        recent_messages = self.get_recent_messages(limit=5)
+        feedback_texts = [
+            msg.get('content', '') 
+            for msg in recent_messages 
+            if msg.get('type') == 'feedback'
+        ]
+        
         prompt = f"""
         You are a professional fiction line editor.
 
@@ -49,13 +42,14 @@ class EditorAgent(AgentBase):
         Output:
         - Only return the revised text, no commentary.
         """
+        
+        if feedback_texts:
+            prompt += f"\n\nRecent feedback:\n" + "\n".join(feedback_texts)
 
-        # --- Model selection ---
+        # Model selection
         if self.model_mode == "high_quality":
-            # Use heavy local 7B model for premium editing
             edited_text = generate_with_heavy_model(prompt)
         else:
-            # Use fast model via HTTP
             payload = {
                 "model": "Qwen/Qwen2.5-3B-Instruct",
                 "messages": [{"role": "user", "content": prompt}],
@@ -65,4 +59,3 @@ class EditorAgent(AgentBase):
             edited_text = response.json()["choices"][0]["message"]["content"]
 
         return edited_text
-

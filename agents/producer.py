@@ -14,7 +14,6 @@ from core.event_bus import EventBus
 from core.audit_log import AuditLog
 from core.agent_factory import AgentFactory
 from models.heavy_model import generate_with_heavy_model
-from agent_bus import GLOBAL_AGENT_BUS
 
 
 class ProducerAgent:
@@ -67,15 +66,30 @@ class ProducerAgent:
         """Get recent messages from EventBus"""
         return self.event_bus.get_recent(self.name, limit=20)
 
-    def fetch_messages(self):
-        """Legacy compatibility - fetch from GLOBAL_AGENT_BUS"""
-        msgs = GLOBAL_AGENT_BUS.get_for(
-            project_name=self.project_name,
-            agent_name=self.name,
-            since_id=self._last_msg_id,
+    def get_intelligence_messages(
+        self, 
+        recipient: str = "all", 
+        limit: int = 10
+    ) -> list:
+        """
+        Get messages from agent bus for a recipient.
+        
+        Uses Registry pattern instead of global bus.
+        
+        Args:
+            recipient: Agent name or "all" for broadcast
+            limit: Maximum messages to return
+            
+        Returns:
+            List of messages for the recipient
+        """
+        from core.registry import REGISTRY
+        
+        agent_bus = REGISTRY.get_agent_bus(self.project_name)
+        msgs = agent_bus.get_for(
+            recipient=recipient if recipient != "all" else "broadcast",
+            limit=limit
         )
-        if msgs:
-            self._last_msg_id = msgs[-1].id
         return msgs
 
     def get_continuity_critiques(self):

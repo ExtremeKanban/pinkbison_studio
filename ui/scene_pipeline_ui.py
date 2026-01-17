@@ -1,29 +1,18 @@
+"""
+Scene Pipeline UI component.
+Uses standardized producer pattern from ui.common.
+"""
+
 import streamlit as st
-from agents.producer import ProducerAgent
+from ui.common import get_producer
 from project_manager.loader import save_project_state
 from project_manager.state import extract_state_from_session
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
-from config.settings import MODEL_CONFIG
 
-def render_scene_pipeline(project_name):
-    # Ensure ProducerAgent exists
-    if "producer" not in st.session_state:
-        fast_model_url = MODEL_CONFIG.fast_model_url
-        model_mode = "fast"
-        
-        event_bus = EventBus(project_name)
-        audit_log = AuditLog(project_name)
 
-        st.session_state["producer"] = ProducerAgent(
-            project_name=project_name,
-            event_bus=event_bus,
-            audit_log=audit_log,
-            fast_model_url=fast_model_url,
-            model_mode=model_mode,
-        )
-
-    producer = st.session_state["producer"]
+def render_scene_pipeline(project_name: str):
+    """Render Scene Pipeline UI panel"""
+    # Get producer using standardized pattern
+    producer = get_producer(project_name)
 
     st.header("Scene Pipeline (Scene Generator → Continuity → Editor)")
 

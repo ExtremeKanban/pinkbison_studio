@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional, Iterator
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, asdict
-
+from config.settings import STORAGE_CONFIG
 
 @dataclass
 class AuditEntry:
@@ -40,7 +40,7 @@ class AuditLog:
     - Efficient streaming for large logs
     - Optional replay capability
     """
-    from config.settings import STORAGE_CONFIG
+    
     def __init__(self, project_name: str, base_dir: str = None):
         self.project_name = project_name
         self.base_dir = Path(base_dir) if base_dir else STORAGE_CONFIG.audit_log_dir

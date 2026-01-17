@@ -1,0 +1,35 @@
+{
+  "project_name": "",
+  "version": "1.0.0",
+  "meta": {
+    "genre": "",
+    "tone": "",
+    "themes": "",
+    "setting": ""
+  },
+  "outline": "",
+  "world": "",
+  "characters": "",
+  "scene_raw": "",
+  "scene_continuity": "",
+  "scene_final": "",
+  "pipeline_outline": "",
+  "pipeline_world": "",
+  "pipeline_characters": "",
+  "pipeline_results": [],
+  "inputs": {
+    "seed_idea_plot": "",
+    "outline_for_world": "",
+    "world_notes_for_chars": "",
+    "outline_for_chars": "",
+    "scene_prompt": "",
+    "scene_outline_snippet": "",
+    "scene_world_notes": "",
+    "scene_character_notes": "",
+    "seed_idea_pipeline": "",
+    "memory_search_query": "",
+    "new_memory_text": ""
+  },
+  "created_at": "2026-01-17T00:59:56.581882",
+  "updated_at": "2026-01-17T00:59:56.581882"
+}

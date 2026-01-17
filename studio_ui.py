@@ -1,12 +1,13 @@
 """
 Main Streamlit UI entry point.
-Updated to use EventBus + AuditLog architecture.
+Updated to use standardized UI patterns from ui.common.
 """
 
 import streamlit as st
 
 from project_manager.state import initialize_session_state
 from ui.sidebar import render_sidebar
+from ui.common import get_producer
 from ui.general_playground import render_general_playground
 from ui.plot_architect_ui import render_plot_architect
 from ui.worldbuilder_ui import render_worldbuilder
@@ -19,11 +20,6 @@ from ui.memory_search_ui import render_memory_search
 from ui.memory_add_ui import render_memory_add
 from ui.memory_browser_ui import render_memory_browser
 
-from agents.producer import ProducerAgent
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
-from config.settings import MODEL_CONFIG
-
 # Initialize session state for project data
 initialize_session_state()
 
@@ -34,34 +30,8 @@ if "current_project" not in st.session_state:
 # Sidebar (project switching happens here)
 project_name = render_sidebar()
 
-# Initialize EventBus and AuditLog for this project
-if "event_bus" not in st.session_state or st.session_state.get("_event_bus_project") != project_name:
-    st.session_state["event_bus"] = EventBus(project_name)
-    st.session_state["_event_bus_project"] = project_name
-
-if "audit_log" not in st.session_state or st.session_state.get("_audit_log_project") != project_name:
-    st.session_state["audit_log"] = AuditLog(project_name)
-    st.session_state["_audit_log_project"] = project_name
-
-event_bus = st.session_state["event_bus"]
-audit_log = st.session_state["audit_log"]
-
-# Model configuration (from centralized config)
-fast_model_url = MODEL_CONFIG.fast_model_url
-model_mode = "fast"
-
-# Create ProducerAgent for this project
-if "producer" not in st.session_state or st.session_state.get("_producer_project") != project_name:
-    st.session_state["producer"] = ProducerAgent(
-        project_name=project_name,
-        event_bus=event_bus,
-        audit_log=audit_log,
-        fast_model_url=fast_model_url,
-        model_mode=model_mode,
-    )
-    st.session_state["_producer_project"] = project_name
-
-producer = st.session_state["producer"]
+# Get ProducerAgent for this project (creates infrastructure automatically)
+producer = get_producer(project_name)
 
 # Main UI
 st.title("PinkBison Creative Studio")

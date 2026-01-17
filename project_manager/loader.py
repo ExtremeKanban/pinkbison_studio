@@ -9,9 +9,10 @@ from typing import Dict, Any, List
 from pathlib import Path
 
 from core.project_state import ProjectState
+from config.settings import STORAGE_CONFIG
 
 # Legacy directory for backward compatibility
-LEGACY_PROJECTS_DIR = "projects"
+LEGACY_PROJECTS_DIR = str(STORAGE_CONFIG.legacy_projects_dir)
 
 
 def ensure_legacy_dir() -> None:

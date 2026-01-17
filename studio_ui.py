@@ -22,6 +22,7 @@ from ui.memory_browser_ui import render_memory_browser
 from agents.producer import ProducerAgent
 from core.event_bus import EventBus
 from core.audit_log import AuditLog
+from config.settings import MODEL_CONFIG
 
 # Initialize session state for project data
 initialize_session_state()
@@ -45,8 +46,8 @@ if "audit_log" not in st.session_state or st.session_state.get("_audit_log_proje
 event_bus = st.session_state["event_bus"]
 audit_log = st.session_state["audit_log"]
 
-# Model configuration
-fast_model_url = "http://localhost:8000/v1/chat/completions"
+# Model configuration (from centralized config)
+fast_model_url = MODEL_CONFIG.fast_model_url
 model_mode = "fast"
 
 # Create ProducerAgent for this project

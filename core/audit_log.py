@@ -40,10 +40,10 @@ class AuditLog:
     - Efficient streaming for large logs
     - Optional replay capability
     """
-    
-    def __init__(self, project_name: str, base_dir: str = "audit_logs"):
+    from config.settings import STORAGE_CONFIG
+    def __init__(self, project_name: str, base_dir: str = None):
         self.project_name = project_name
-        self.base_dir = Path(base_dir)
+        self.base_dir = Path(base_dir) if base_dir else STORAGE_CONFIG.audit_log_dir
         self.base_dir.mkdir(exist_ok=True)
         
         self.log_path = self.base_dir / f"{project_name}_audit.jsonl"

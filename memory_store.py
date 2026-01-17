@@ -1,8 +1,14 @@
+"""
+Optimized hybrid memory architecture with centralized configuration.
+"""
+
 import faiss
 import numpy as np
 import requests
 import os
 import json
+from pathlib import Path
+from config.settings import MODEL_CONFIG
 
 
 class MemoryStore:
@@ -17,8 +23,10 @@ class MemoryStore:
     def __init__(self, project_name: str = "default_project", dim: int = 384):
         self.project_name = project_name
         self.dim = dim
+        self.embeddings_url = MODEL_CONFIG.embeddings_url
+        self.embeddings_model = MODEL_CONFIG.embeddings_model
 
-        # Project-specific paths
+        # Project-specific paths (legacy format for now)
         self.index_path = f"{project_name}_memory.index"
         self.texts_path = f"{project_name}_memory_texts.json"
         self.embeddings_path = f"{project_name}_embeddings.npy"
@@ -44,17 +52,14 @@ class MemoryStore:
             if len(self.embeddings) > 0:
                 self.index.add(self.embeddings)
 
-    # ---------------------------------------------------------
-    # Embedding function (only used when adding new memory)
-    # ---------------------------------------------------------
     def embed(self, text: str) -> np.ndarray:
-        url = "http://localhost:8001/v1/embeddings"
+        """Generate embedding using configured embeddings server"""
         payload = {
             "input": text,
-            "model": "BAAI/bge-small-en-v1.5"
+            "model": self.embeddings_model
         }
 
-        response = requests.post(url, json=payload)
+        response = requests.post(self.embeddings_url, json=payload)
         data = response.json()
 
         if "data" not in data:
@@ -62,10 +67,8 @@ class MemoryStore:
 
         return np.array(data["data"][0]["embedding"], dtype="float32")
 
-    # ---------------------------------------------------------
-    # Add memory (fast)
-    # ---------------------------------------------------------
     def add(self, text: str) -> None:
+        """Add text to memory with embedding"""
         embedding = self.embed(text)
 
         # Append text
@@ -79,10 +82,8 @@ class MemoryStore:
 
         self.save()
 
-    # ---------------------------------------------------------
-    # Search memory (deduped)
-    # ---------------------------------------------------------
     def search(self, query: str, k: int = 5) -> list[str]:
+        """Search memory with deduplication"""
         if len(self.text_store) == 0:
             return []
 
@@ -99,16 +100,12 @@ class MemoryStore:
 
         return results
 
-    # ---------------------------------------------------------
-    # Return all memory entries
-    # ---------------------------------------------------------
     def get_all(self) -> list[tuple[int, str]]:
+        """Return all memory entries with indices"""
         return list(enumerate(self.text_store))
 
-    # ---------------------------------------------------------
-    # Delete memory (instant)
-    # ---------------------------------------------------------
     def delete(self, idx: int) -> None:
+        """Delete memory entry and rebuild index"""
         if idx < 0 or idx >= len(self.text_store):
             raise IndexError("Memory index out of range.")
 
@@ -130,20 +127,15 @@ class MemoryStore:
 
         self.save()
 
-
-    # ---------------------------------------------------------
-    # Clear memory (instant)
-    # ---------------------------------------------------------
     def clear(self) -> None:
+        """Clear all memory"""
         self.text_store = []
         self.embeddings = np.zeros((0, self.dim), dtype="float32")
         self.index = faiss.IndexFlatL2(self.dim)
         self.save()
 
-    # ---------------------------------------------------------
-    # Save everything
-    # ---------------------------------------------------------
     def save(self) -> None:
+        """Save all memory components"""
         # Save FAISS index
         faiss.write_index(self.index, self.index_path)
 

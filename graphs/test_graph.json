@@ -1,0 +1,12 @@
+{
+  "entities": {
+    "character": {},
+    "location": {},
+    "faction": {},
+    "artifact": {},
+    "concept": {}
+  },
+  "relationships": [],
+  "events": [],
+  "canon_rules": []
+}

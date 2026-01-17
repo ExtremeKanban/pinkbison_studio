@@ -16,6 +16,7 @@ from graph_store import GraphStore
 from memory_store import MemoryStore
 from core.event_bus import EventBus
 from core.audit_log import AuditLog
+from config.settings import MODEL_CONFIG
 
 
 class ProjectOrchestrator:
@@ -30,8 +31,8 @@ class ProjectOrchestrator:
         self.project_name = project_name
         self.poll_interval = poll_interval
 
-        # Model configuration
-        self.fast_model_url = "http://localhost:8000/v1/chat/completions"
+        # Model configuration (from centralized config)
+        self.fast_model_url = MODEL_CONFIG.fast_model_url
         self.model_mode = "fast"
 
         # Shared infrastructure

@@ -1,8 +1,5 @@
 """
-Single-project orchestrator (legacy, Phase 0).
-Uses new EventBus + AuditLog architecture.
-
-This will be replaced by MultiProjectOrchestrator in Phase 1.
+Single-project orchestrator using Registry pattern.
 """
 
 import time
@@ -10,18 +7,14 @@ from typing import Optional
 
 from agents.producer import ProducerAgent
 from agents.creative_director import CreativeDirectorAgent
-from agent_bus import GLOBAL_AGENT_BUS
-from task_manager import TaskManager, TaskStatus
-from graph_store import GraphStore
-from memory_store import MemoryStore
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
+from core.registry import REGISTRY
+from task_manager import TaskStatus
 from config.settings import MODEL_CONFIG
 
 
 class ProjectOrchestrator:
     """
-    Single-project orchestrator using EventBus + AuditLog.
+    Single-project orchestrator using Registry for infrastructure.
     
     NOTE: This is Phase 0 implementation. Will be replaced by
     async MultiProjectOrchestrator in Phase 1.
@@ -35,9 +28,12 @@ class ProjectOrchestrator:
         self.fast_model_url = MODEL_CONFIG.fast_model_url
         self.model_mode = "fast"
 
-        # Shared infrastructure
-        self.event_bus = EventBus(project_name)
-        self.audit_log = AuditLog(project_name)
+        # Get infrastructure from registry
+        self.event_bus = REGISTRY.get_event_bus(project_name)
+        self.audit_log = REGISTRY.get_audit_log(project_name)
+        self.memory = REGISTRY.get_memory_store(project_name)
+        self.graph = REGISTRY.get_graph_store(project_name)
+        self.tasks = REGISTRY.get_task_manager(project_name)
 
         # Create agents
         self.producer = ProducerAgent(
@@ -55,11 +51,7 @@ class ProjectOrchestrator:
             fast_model_url=self.fast_model_url,
             model_mode=self.model_mode,
         )
-
-        self.tasks = TaskManager(project_name=project_name)
-        self.graph = GraphStore(project_name=project_name)
-        self.memory = MemoryStore(project_name=project_name)
-
+        
         self._running = False
 
     def _ingest_continuity_messages(self):

@@ -95,3 +95,12 @@ class AgentBus:
 
 # Global bus instance for the process
 GLOBAL_AGENT_BUS = AgentBus()
+
+# DEPRECATED: Use core.registry.REGISTRY.get_agent_bus() instead
+# This global will be removed in Phase 1
+import warnings
+warnings.warn(
+    "GLOBAL_AGENT_BUS is deprecated. Use REGISTRY.get_agent_bus(project_name) instead.",
+    DeprecationWarning,
+    stacklevel=2
+)

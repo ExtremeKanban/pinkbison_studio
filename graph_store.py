@@ -3,25 +3,48 @@ Knowledge graph storage for project entities, relationships, and canon rules.
 """
 
 import json
-import os
+import shutil
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from config.settings import STORAGE_CONFIG
+from core.storage_paths import ProjectPaths, LegacyPaths
 
 
 class GraphStore:
     def __init__(self, project_name: str, base_dir: Optional[str] = None):
         self.project_name = project_name
-        self.base_dir = base_dir or str(STORAGE_CONFIG.legacy_graphs_dir)
-        os.makedirs(self.base_dir, exist_ok=True)
-
-        self.path = os.path.join(self.base_dir, f"{project_name}_graph.json")
+        
+        # Get unified paths
+        self.paths = ProjectPaths.for_project(project_name, base_dir)
+        self.paths.ensure_directories()
+        
+        # Migrate from legacy location if needed
+        self._migrate_from_legacy()
+        
+        # Use new unified path
+        self.path = str(self.paths.graph)
 
         # Load or initialize
-        if not os.path.exists(self.path):
+        if not Path(self.path).exists():
             self._init_empty_graph()
 
         self.data = self._load()
+    
+    def _migrate_from_legacy(self) -> None:
+        """Migrate graph from legacy location to unified structure"""
+        legacy_path = LegacyPaths.graph(self.project_name)
+        
+        # Check if migration needed
+        if not legacy_path.exists():
+            return
+        
+        # Check if already migrated
+        if self.paths.graph.exists():
+            return
+        
+        print(f"[GraphStore] Migrating {self.project_name} graph to unified storage...")
+        shutil.copy2(legacy_path, self.paths.graph)
+        print(f"  ✓ Migrated: {legacy_path} → {self.paths.graph}")
 
     def _init_empty_graph(self) -> None:
         """Initialize empty graph structure"""

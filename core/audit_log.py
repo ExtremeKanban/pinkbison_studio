@@ -43,11 +43,37 @@ class AuditLog:
     
     def __init__(self, project_name: str, base_dir: str = None):
         self.project_name = project_name
-        self.base_dir = Path(base_dir) if base_dir else STORAGE_CONFIG.audit_log_dir
-        self.base_dir.mkdir(exist_ok=True)
         
-        self.log_path = self.base_dir / f"{project_name}_audit.jsonl"
+        # Get unified paths
+        from core.storage_paths import ProjectPaths, LegacyPaths
+        self.paths = ProjectPaths.for_project(project_name, base_dir)
+        self.paths.ensure_directories()
+        
+        # Migrate from legacy location if needed
+        self._migrate_from_legacy()
+        
+        # Use new unified path
+        self.log_path = self.paths.audit
         self._ensure_log_exists()
+    
+    def _migrate_from_legacy(self) -> None:
+        """Migrate audit log from legacy location"""
+        import shutil
+        from core.storage_paths import LegacyPaths
+        
+        legacy_path = LegacyPaths.audit(self.project_name)
+        
+        # Check if migration needed
+        if not legacy_path.exists():
+            return
+        
+        # Check if already migrated
+        if self.paths.audit.exists():
+            return
+        
+        print(f"[AuditLog] Migrating {self.project_name} audit log to unified storage...")
+        shutil.copy2(legacy_path, self.paths.audit)
+        print(f"  ✓ Migrated: {legacy_path} → {self.paths.audit}")
     
     def _ensure_log_exists(self) -> None:
         """Create log file if it doesn't exist"""

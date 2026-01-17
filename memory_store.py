@@ -1,23 +1,25 @@
 """
-Optimized hybrid memory architecture with centralized configuration.
+Memory store with unified storage paths.
 """
 
 import faiss
 import numpy as np
 import requests
-import os
 import json
+import shutil
 from pathlib import Path
 from config.settings import MODEL_CONFIG
+from core.storage_paths import ProjectPaths, LegacyPaths
 
 
 class MemoryStore:
     """
-    Optimized hybrid memory architecture:
-    - Stores text in JSON
-    - Stores embeddings in embeddings.npy
-    - Rebuilds FAISS index from stored embeddings (fast)
-    - Never re-embeds text except when adding new memory
+    Optimized hybrid memory architecture with unified storage.
+    
+    Storage location: project_state/<project>/memory/
+    - index.faiss
+    - texts.json
+    - embeddings.npy
     """
 
     def __init__(self, project_name: str = "default_project", dim: int = 384):
@@ -26,31 +28,79 @@ class MemoryStore:
         self.embeddings_url = MODEL_CONFIG.embeddings_url
         self.embeddings_model = MODEL_CONFIG.embeddings_model
 
-        # Project-specific paths (legacy format for now)
-        self.index_path = f"{project_name}_memory.index"
-        self.texts_path = f"{project_name}_memory_texts.json"
-        self.embeddings_path = f"{project_name}_embeddings.npy"
+        # Get unified paths
+        self.paths = ProjectPaths.for_project(project_name)
+        self.paths.ensure_directories()
+        
+        # Migrate from legacy location if needed
+        self._migrate_from_legacy()
+        
+        # Use new unified paths
+        self.index_path = str(self.paths.memory_index)
+        self.texts_path = str(self.paths.memory_texts)
+        self.embeddings_path = str(self.paths.memory_embeddings)
 
         # Load or initialize text store
-        if os.path.exists(self.texts_path):
+        if Path(self.texts_path).exists():
             with open(self.texts_path, "r", encoding="utf-8") as f:
                 self.text_store = json.load(f)
         else:
             self.text_store = []
 
         # Load or initialize embeddings
-        if os.path.exists(self.embeddings_path):
+        if Path(self.embeddings_path).exists():
             self.embeddings = np.load(self.embeddings_path)
         else:
             self.embeddings = np.zeros((0, dim), dtype="float32")
 
         # Load or create FAISS index
-        if os.path.exists(self.index_path):
+        if Path(self.index_path).exists():
             self.index = faiss.read_index(self.index_path)
         else:
             self.index = faiss.IndexFlatL2(dim)
             if len(self.embeddings) > 0:
                 self.index.add(self.embeddings)
+
+    def _migrate_from_legacy(self) -> None:
+            """
+            Migrate memory files from legacy locations to unified structure.
+            
+            Legacy locations:
+            - project_root/PROJECT_memory.index
+            - project_root/PROJECT_memory_texts.json
+            - project_root/PROJECT_embeddings.npy
+            
+            New location:
+            - project_state/PROJECT/memory/
+            """
+            legacy_index = LegacyPaths.memory_index(self.project_name)
+            legacy_texts = LegacyPaths.memory_texts(self.project_name)
+            legacy_embeddings = LegacyPaths.memory_embeddings(self.project_name)
+            
+            # Check if migration needed
+            if not legacy_index.exists():
+                return  # No legacy files to migrate
+            
+            # Check if already migrated
+            if self.paths.memory_index.exists():
+                return  # Already in new location
+            
+            print(f"[MemoryStore] Migrating {self.project_name} memory to unified storage...")
+            
+            # Copy files to new location
+            if legacy_index.exists():
+                shutil.copy2(legacy_index, self.paths.memory_index)
+                print(f"  ✓ Migrated index: {legacy_index} → {self.paths.memory_index}")
+            
+            if legacy_texts.exists():
+                shutil.copy2(legacy_texts, self.paths.memory_texts)
+                print(f"  ✓ Migrated texts: {legacy_texts} → {self.paths.memory_texts}")
+            
+            if legacy_embeddings.exists():
+                shutil.copy2(legacy_embeddings, self.paths.memory_embeddings)
+                print(f"  ✓ Migrated embeddings: {legacy_embeddings} → {self.paths.memory_embeddings}")
+            
+            print(f"[MemoryStore] Migration complete for {self.project_name}")
 
     def embed(self, text: str) -> np.ndarray:
         """Generate embedding using configured embeddings server"""
@@ -135,7 +185,7 @@ class MemoryStore:
         self.save()
 
     def save(self) -> None:
-        """Save all memory components"""
+        """Save all memory components to unified location"""
         # Save FAISS index
         faiss.write_index(self.index, self.index_path)
 

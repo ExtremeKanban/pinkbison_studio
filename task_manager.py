@@ -52,11 +52,38 @@ class TaskManager:
 
     def __init__(self, project_name: str, base_dir: str = "tasks"):
         self.project_name = project_name
-        self.base_dir = base_dir
-        os.makedirs(self.base_dir, exist_ok=True)
-        self.path = os.path.join(self.base_dir, f"{project_name}_tasks.json")
+        
+        # Get unified paths
+        from core.storage_paths import ProjectPaths, LegacyPaths
+        self.paths = ProjectPaths.for_project(project_name)
+        self.paths.ensure_directories()
+        
+        # Migrate from legacy location if needed
+        self._migrate_from_legacy()
+        
+        # Use new unified path
+        self.path = str(self.paths.tasks)
         self._tasks: List[Task] = []
         self._load()
+    
+    def _migrate_from_legacy(self) -> None:
+        """Migrate tasks from legacy location"""
+        import shutil
+        from core.storage_paths import LegacyPaths
+        
+        legacy_path = LegacyPaths.tasks(self.project_name)
+        
+        # Check if migration needed
+        if not legacy_path.exists():
+            return
+        
+        # Check if already migrated
+        if self.paths.tasks.exists():
+            return
+        
+        print(f"[TaskManager] Migrating {self.project_name} tasks to unified storage...")
+        shutil.copy2(legacy_path, self.paths.tasks)
+        print(f"  ✓ Migrated: {legacy_path} → {self.paths.tasks}")
 
     def _load(self) -> None:
         if not os.path.exists(self.path):

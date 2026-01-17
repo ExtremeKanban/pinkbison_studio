@@ -1,91 +1,118 @@
-import requests
-from memory_store import MemoryStore
-from agent_bus import GLOBAL_AGENT_BUS
-from models.heavy_model import generate_with_heavy_model
+"""
+Continuity agent - checks for plot/world consistency.
+Updated to use ModelClient for reliable model calls.
+"""
+
+import json
+from typing import Optional
 from agents.base_agent import AgentBase
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
+from models.model_client import ModelClient
+from models.exceptions import ModelError
 
 
 class ContinuityAgent(AgentBase):
-    def __init__(self, project_name, event_bus: EventBus, audit_log: AuditLog,
-                 fast_model_url, model_mode):
-        super().__init__("continuity", project_name, event_bus, audit_log,
-                        fast_model_url, model_mode)
-        self.memory = MemoryStore(project_name)
+    """
+    Continuity Agent: Checks for consistency in plot, world, and characters.
+    
+    Responsibilities:
+    - Detect continuity errors
+    - Verify world rule consistency
+    - Check character behavior consistency
+    
+    Now uses ModelClient for reliable model calls with retry logic.
+    """
 
-    def run(self, new_text: str) -> str:
+    def run(
+        self,
+        scene_text: str,
+        context: str = "",
+        auto_memory: bool = False,
+    ) -> str:
         """
-        Check new_text against project memory for contradictions and adjust if needed.
-        Returns a revised version that is as consistent as possible.
-        """
-        
-        # Check for feedback from EventBus
-        recent_messages = self.get_recent_messages(limit=5)
-        feedback_texts = [
-            msg.get('content', '') 
-            for msg in recent_messages 
-            if msg.get('type') == 'feedback'
-        ]
-        
-        memory_context = self.memory.search("core canon rules events characters world", k=20)
-        memory_text = "\n".join(memory_context) if memory_context else "None yet."
+        Check scene for continuity issues and provide corrections.
 
+        Args:
+            scene_text: Scene to check
+            context: World/character context for checking
+            auto_memory: If True, store results in memory
+
+        Returns:
+            Continuity report with corrections
+
+        Raises:
+            ModelError: If model call fails after retries
+        """
+        # Optional: search memory for continuity issues
+        memory_context = ""
+        if auto_memory:
+            memory_hits = self.memory.search(scene_text[:200], k=5)
+            if memory_hits:
+                memory_context = "\n[Relevant Memory]:\n" + "\n".join(memory_hits)
+
+        # Build prompt
         prompt = f"""
-        You are a Continuity and Canon Enforcement Agent for a narrative universe.
+You are the Continuity Agent. Review the following scene for consistency issues.
 
-        Canon memory (facts, rules, events, constraints):
-        \"\"\"{memory_text}\"\"\"
+Scene: {scene_text}
+Context: {context}
+{memory_context}
 
-        New candidate text:
-        \"\"\"{new_text}\"\"\"
+Check for:
+- Plot consistency with established story
+- Character behavior consistency
+- World rule violations
+- Timeline contradictions
+- Factual errors
 
-        Task:
-        - Check the candidate text against the canon memory.
-        - Identify any contradictions, violations of established rules, or inconsistencies.
-        - Produce a revised version of the text that:
-          - resolves contradictions
-          - respects all canon rules and facts
-          - preserves as much of the original intent and style as possible
+If issues found, provide:
+1. List of specific issues
+2. Suggested corrections
+3. Revised scene (if needed)
 
-        Output:
-        - First, briefly list any issues you found.
-        - Then provide the fully revised text under a heading: REVISED TEXT
-        """
+If no issues, respond: "CONTINUITY CHECK PASSED"
+"""
+
+        # Use ModelClient for reliable model call
+        client = ModelClient(model_url=self.fast_model_url)
         
-        if feedback_texts:
-            prompt += f"\n\nRecent feedback:\n" + "\n".join(feedback_texts)
+        try:
+            continuity_report = client.complete_simple(
+                prompt=prompt,
+                temperature=0.7
+            )
+        except ModelError as e:
+            # Log error with details
+            self.audit_log.append(
+                event_type="agent_error_model",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "prompt_length": len(prompt),
+                },
+            )
+            raise
 
-        # Model selection
-        if self.model_mode == "high_quality":
-            checked_text = generate_with_heavy_model(prompt)
-        else:
-            payload = {
-                "model": "Qwen/Qwen2.5-3B-Instruct",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.5
-            }
-            response = requests.post(self.fast_model_url, json=payload)
-            checked_text = response.json()["choices"][0]["message"]["content"]
-
-        # Extract issues
-        issues = ""
-        if "REVISED TEXT" in checked_text:
-            issues = checked_text.split("REVISED TEXT")[0].strip()
-        else:
-            issues = "No explicit issues section found."
-
-        # Send message to ProducerAgent via old GLOBAL_AGENT_BUS for compatibility
-        GLOBAL_AGENT_BUS.send(
-            project_name=self.project_name,
+        # Emit success event
+        self.event_bus.emit(
+            event_type="continuity_check_complete",
             sender=self.name,
-            recipient="producer",
-            msg_type="CRITIQUE",
-            payload={
-                "raw_output": checked_text,
-                "issues": issues,
-                "original_text": new_text,
-            },
+            recipient="broadcast",
+            payload={"report": continuity_report},
         )
 
-        return checked_text
+        # Log completion
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="user",
+            payload={"report": continuity_report[:200]},
+        )
+
+        # Store in memory if requested
+        if auto_memory:
+            if "PASSED" not in continuity_report:
+                self.memory.add(f"Continuity issues found: {continuity_report[:300]}")
+
+        return continuity_report

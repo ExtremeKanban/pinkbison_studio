@@ -1,89 +1,112 @@
-import requests
-from agents.memory_extractor import MemoryExtractor
-from memory_store import MemoryStore
-from models.heavy_model import generate_with_heavy_model
+"""
+Character agent - creates character bibles and profiles.
+Updated to use ModelClient for reliable model calls.
+"""
+
+import json
+from typing import Optional
 from agents.base_agent import AgentBase
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
+from models.model_client import ModelClient
+from models.exceptions import ModelError
 
 
 class CharacterAgent(AgentBase):
-    def __init__(self, project_name, event_bus: EventBus, audit_log: AuditLog,
-                 fast_model_url, model_mode):
-        super().__init__("character_agent", project_name, event_bus, audit_log,
-                        fast_model_url, model_mode)
-        self.extractor = MemoryExtractor(fast_model_url)
-        self.memory = MemoryStore(project_name)
+    """
+    Character Agent: Creates detailed character profiles and bibles.
+    
+    Responsibilities:
+    - Define character personalities and arcs
+    - Create character backstories
+    - Establish character relationships
+    
+    Now uses ModelClient for reliable model calls with retry logic.
+    """
 
-    def run(self, outline: str, world_notes: str, auto_memory: bool = True) -> str:
+    def run(
+        self,
+        outline: str,
+        world_notes: str = "",
+        auto_memory: bool = False,
+    ) -> str:
         """
-        Generate character bios and arcs based on the outline and world.
+        Generate character bible from outline and world notes.
+
+        Args:
+            outline: Plot outline with character roles
+            world_notes: World bible for context
+            auto_memory: If True, store results in memory
+
+        Returns:
+            Character bible document
+
+        Raises:
+            ModelError: If model call fails after retries
         """
-        
-        # Check for feedback from EventBus
-        recent_messages = self.get_recent_messages(limit=5)
-        feedback_texts = [
-            msg.get('content', '') 
-            for msg in recent_messages 
-            if msg.get('type') == 'feedback'
-        ]
-        
-        memory_context = self.memory.search("characters relationships arcs motivations", k=10)
-        memory_text = "\n".join(memory_context) if memory_context else "None yet."
-
-        prompt = f"""
-        You are a Character Architect for a long-form narrative project.
-
-        Plot outline:
-        \"\"\"{outline}\"\"\"
-
-        World notes:
-        \"\"\"{world_notes}\"\"\"
-
-        Existing character-related memory:
-        \"\"\"{memory_text}\"\"\"
-
-        Task:
-        - Identify the main and key supporting characters.
-        - For each important character, provide:
-          - name
-          - role in the story
-          - core motivation
-          - strengths and flaws
-          - internal conflict
-          - external conflict
-          - relationships with other key characters
-          - transformation arc across the story
-
-        Output:
-        - Use a clear heading per character.
-        - Use bullet points for attributes.
-        - Ensure arcs align with the outline and world.
-        """
-        
-        if feedback_texts:
-            prompt += f"\n\nRecent feedback:\n" + "\n".join(feedback_texts)
-
-        if self.model_mode == "high_quality":
-            characters_doc = generate_with_heavy_model(prompt)
-        else:
-            payload = {
-                "model": "Qwen/Qwen2.5-3B-Instruct",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.8
-            }
-            response = requests.post(self.fast_model_url, json=payload)
-            characters_doc = response.json()["choices"][0]["message"]["content"]
-
+        # Optional: search memory for character-related context
+        memory_context = ""
         if auto_memory:
-            facts = self.extractor.extract(characters_doc)
-            for fact in facts:
-                self.memory.add(fact)
+            memory_hits = self.memory.search(outline[:200], k=5)
+            if memory_hits:
+                memory_context = "\n[Relevant Memory]:\n" + "\n".join(memory_hits)
 
-        self.send_message(
-            recipient="scene_generator",
-            msg_type="CHARACTERS_READY",
-            payload={"characters": characters_doc}
+        # Build prompt
+        prompt = f"""
+You are the Character Agent. Create detailed character profiles for the following story.
+
+Outline: {outline}
+World Notes: {world_notes}
+{memory_context}
+
+For each major character, provide:
+- Name and role
+- Physical description
+- Personality traits
+- Backstory and motivations
+- Character arc
+- Key relationships
+- Unique quirks or flaws
+"""
+
+        # Use ModelClient for reliable model call
+        client = ModelClient(model_url=self.fast_model_url)
+        
+        try:
+            characters_doc = client.complete_simple(
+                prompt=prompt,
+                temperature=0.8
+            )
+        except ModelError as e:
+            # Log error with details
+            self.audit_log.append(
+                event_type="agent_error_model",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "prompt_length": len(prompt),
+                },
+            )
+            raise
+
+        # Emit success event
+        self.event_bus.emit(
+            event_type="character_bible_generated",
+            sender=self.name,
+            recipient="broadcast",
+            payload={"characters": characters_doc},
         )
+
+        # Log completion
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="user",
+            payload={"characters": characters_doc[:200]},
+        )
+
+        # Store in memory if requested
+        if auto_memory:
+            self.memory.add(f"Character bible created: {characters_doc[:300]}")
 
         return characters_doc

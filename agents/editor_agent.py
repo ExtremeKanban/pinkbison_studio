@@ -1,61 +1,118 @@
-import requests
-from models.heavy_model import generate_with_heavy_model
+"""
+Editor agent - polishes and improves scene prose.
+Updated to use ModelClient for reliable model calls.
+"""
+
+import json
+from typing import Optional
 from agents.base_agent import AgentBase
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
+from models.model_client import ModelClient
+from models.exceptions import ModelError
 
 
 class EditorAgent(AgentBase):
-    def __init__(self, project_name, event_bus: EventBus, audit_log: AuditLog,
-                 fast_model_url, model_mode):
-        super().__init__("editor", project_name, event_bus, audit_log,
-                        fast_model_url, model_mode)
+    """
+    Editor Agent: Polishes and improves scene prose.
+    
+    Responsibilities:
+    - Improve prose quality
+    - Enhance descriptions
+    - Refine dialogue
+    - Fix grammar and style
+    
+    Now uses ModelClient for reliable model calls with retry logic.
+    """
 
-    def run(self, text: str, style_goal: str = "clear, vivid, emotionally resonant prose") -> str:
+    def run(
+        self,
+        scene_text: str,
+        notes: str = "",
+        auto_memory: bool = False,
+    ) -> str:
         """
-        Edit and improve text for style, clarity, pacing, and emotional impact.
+        Edit and polish scene prose.
+
+        Args:
+            scene_text: Scene to edit
+            notes: Editing notes or guidelines
+            auto_memory: If True, store results in memory
+
+        Returns:
+            Polished scene text
+
+        Raises:
+            ModelError: If model call fails after retries
         """
-        
-        # Check for feedback from EventBus
-        recent_messages = self.get_recent_messages(limit=5)
-        feedback_texts = [
-            msg.get('content', '') 
-            for msg in recent_messages 
-            if msg.get('type') == 'feedback'
-        ]
-        
+        # Optional: search memory for style guidelines
+        memory_context = ""
+        if auto_memory:
+            memory_hits = self.memory.search("writing style editing", k=3)
+            if memory_hits:
+                memory_context = "\n[Style Guidelines]:\n" + "\n".join(memory_hits)
+
+        # Build prompt
         prompt = f"""
-        You are a professional fiction line editor.
+You are the Editor Agent. Polish and improve the following scene.
 
-        Editing goal:
-        \"\"\"{style_goal}\"\"\"
+Scene: {scene_text}
+Notes: {notes}
+{memory_context}
 
-        Original text:
-        \"\"\"{text}\"\"\"
+Improve:
+- Prose clarity and flow
+- Dialogue naturalness
+- Descriptive language
+- Grammar and style
+- Pacing
 
-        Task:
-        - Improve clarity, rhythm, and emotional impact.
-        - Tighten weak phrasing.
-        - Preserve the author's voice as much as possible.
-        - Do not change factual content or core events.
+Maintain:
+- Original plot and events
+- Character voices
+- Scene structure
 
-        Output:
-        - Only return the revised text, no commentary.
-        """
+Provide the polished scene.
+"""
+
+        # Use ModelClient for reliable model call
+        client = ModelClient(model_url=self.fast_model_url)
         
-        if feedback_texts:
-            prompt += f"\n\nRecent feedback:\n" + "\n".join(feedback_texts)
+        try:
+            edited_scene = client.complete_simple(
+                prompt=prompt,
+                temperature=0.7
+            )
+        except ModelError as e:
+            # Log error with details
+            self.audit_log.append(
+                event_type="agent_error_model",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "prompt_length": len(prompt),
+                },
+            )
+            raise
 
-        # Model selection
-        if self.model_mode == "high_quality":
-            edited_text = generate_with_heavy_model(prompt)
-        else:
-            payload = {
-                "model": "Qwen/Qwen2.5-3B-Instruct",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.6
-            }
-            response = requests.post(self.fast_model_url, json=payload)
-            edited_text = response.json()["choices"][0]["message"]["content"]
+        # Emit success event
+        self.event_bus.emit(
+            event_type="scene_edited",
+            sender=self.name,
+            recipient="broadcast",
+            payload={"edited_scene": edited_scene},
+        )
 
-        return edited_text
+        # Log completion
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="user",
+            payload={"edited_scene": edited_scene[:200]},
+        )
+
+        # Store in memory if requested
+        if auto_memory:
+            self.memory.add(f"Scene edited and polished")
+
+        return edited_scene

@@ -1,79 +1,134 @@
-import requests
-from agents.memory_extractor import MemoryExtractor
-from memory_store import MemoryStore
-from models.heavy_model import generate_with_heavy_model
+"""
+Plot Architect agent - generates 3-act story outlines.
+Updated to use ModelClient for reliable model calls.
+"""
+
+import json
+from typing import Optional
 from agents.base_agent import AgentBase
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
+from models.model_client import ModelClient
+from models.exceptions import ModelError
 
 
 class PlotArchitect(AgentBase):
-    def __init__(self, project_name, event_bus: EventBus, audit_log: AuditLog,
-                 fast_model_url, model_mode):
-        super().__init__("plot_architect", project_name, event_bus, audit_log,
-                        fast_model_url, model_mode)
-        self.extractor = MemoryExtractor(fast_model_url)
-        self.memory = MemoryStore(project_name)
+    """
+    Plot Architect: Generates structured 3-act outlines from story ideas.
+    
+    Responsibilities:
+    - Create coherent story structure
+    - Define major plot points and turning points
+    - Establish narrative arc
+    
+    Now uses ModelClient for:
+    - Automatic retry on failures
+    - Proper error handling
+    - Timeout management
+    """
 
-    def run(self, idea: str, genre: str, tone: str, themes: str, 
-            setting: str, auto_memory: bool = False) -> str:
-        """Expand a seed idea into a structured 3-act outline using project context."""
-        
-        # Check for feedback from EventBus
-        recent_messages = self.get_recent_messages(limit=5)
-        feedback_texts = [
-            msg.get('content', '') 
-            for msg in recent_messages 
-            if msg.get('type') == 'feedback'
-        ]
-        
-        prompt = f"""
-        You are a Plot Architect.
-
-        Use the following project context:
-        - Genre: {genre}
-        - Tone: {tone}
-        - Themes: {themes}
-        - Setting: {setting}
-
-        Expand the following idea into a detailed 3-act outline.
-
-        Idea:
-        \"\"\"{idea}\"\"\"
-
-        Requirements:
-        - Provide Act I, Act II, Act III
-        - Include major beats
-        - Identify key characters
-        - Identify central conflict
-        - Provide 1-2 twist options
-        - Keep it clear and structured with headings for each act.
+    def run(
+        self,
+        idea: str,
+        genre: str,
+        tone: str,
+        themes: str,
+        setting: str,
+        auto_memory: bool = False,
+    ) -> str:
         """
-        
-        if feedback_texts:
-            prompt += f"\n\nRecent feedback:\n" + "\n".join(feedback_texts)
+        Generate a 3-act outline from a story idea.
 
-        # Model selection
-        if self.model_mode == "high_quality":
-            outline = generate_with_heavy_model(prompt)
-        else:
-            payload = {
-                "model": "Qwen/Qwen2.5-3B-Instruct",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.8
-            }
-            response = requests.post(self.fast_model_url, json=payload)
-            outline = response.json()["choices"][0]["message"]["content"]
+        Args:
+            idea: Core story concept
+            genre: Story genre (e.g., "sci-fi", "fantasy")
+            tone: Desired tone (e.g., "dark", "lighthearted")
+            themes: Key themes to explore
+            setting: Story setting/world
+            auto_memory: If True, store results in memory
 
+        Returns:
+            3-act outline as text
+
+        Raises:
+            ModelError: If model call fails after retries
+        """
+        # Optional: search memory for relevant context
+        memory_context = ""
         if auto_memory:
-            facts = self.extractor.extract(outline)
-            for fact in facts:
-                self.memory.add(fact)
+            memory_hits = self.memory.search(idea, k=5)
+            if memory_hits:
+                memory_context = "\n[Relevant Memory]:\n" + "\n".join(memory_hits)
 
-        self.send_message(
-            recipient="worldbuilder",
-            msg_type="OUTLINE_READY",
-            payload={"outline": outline}
+        # Build prompt
+        prompt = f"""
+You are the Plot Architect. Create a 3-act outline for the following story idea.
+
+Idea: {idea}
+Genre: {genre}
+Tone: {tone}
+Themes: {themes}
+Setting: {setting}
+{memory_context}
+
+Provide a structured 3-act outline with clear turning points.
+Format:
+ACT 1: Setup
+- [Opening scene/hook]
+- [Inciting incident]
+- [First act turning point]
+
+ACT 2: Confrontation
+- [Rising action]
+- [Midpoint twist]
+- [Second act turning point]
+
+ACT 3: Resolution
+- [Climax]
+- [Falling action]
+- [Resolution]
+"""
+
+        # Use ModelClient for reliable model call
+        client = ModelClient(model_url=self.fast_model_url)
+        
+        try:
+            outline = client.complete_simple(
+                prompt=prompt,
+                temperature=0.8
+            )
+        except ModelError as e:
+            # Log error with details
+            self.audit_log.append(
+                event_type="agent_error_model",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "prompt_length": len(prompt),
+                    "idea": idea[:100],
+                },
+            )
+            # Re-raise so caller knows it failed
+            raise
+
+        # Emit success event
+        self.event_bus.emit(
+            event_type="plot_outline_generated",
+            sender=self.name,
+            recipient="broadcast",
+            payload={"outline": outline},
         )
+
+        # Log completion
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="user",
+            payload={"outline": outline[:200]},  # First 200 chars
+        )
+
+        # Store in memory if requested
+        if auto_memory:
+            self.memory.add(f"Plot outline created: {outline[:300]}")
 
         return outline

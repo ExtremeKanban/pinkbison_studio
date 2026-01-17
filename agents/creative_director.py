@@ -1,109 +1,208 @@
-import requests
-from typing import List, Dict, Any
+"""
+Creative Director agent - provides high-level creative guidance.
+Updated to use ModelClient for reliable model calls.
+"""
 
-from memory_store import MemoryStore
-from graph_store import GraphStore
-from agent_bus import GLOBAL_AGENT_BUS
+import json
+from typing import Optional, Dict, Any
 from agents.base_agent import AgentBase
-from core.event_bus import EventBus
-from core.audit_log import AuditLog
+from models.model_client import ModelClient
+from models.exceptions import ModelError
 
 
 class CreativeDirectorAgent(AgentBase):
-    def __init__(self, project_name: str, event_bus: EventBus, audit_log: AuditLog,
-                 fast_model_url: str, model_mode: str):
-        super().__init__("creative_director", project_name, event_bus, audit_log,
-                        fast_model_url, model_mode)
-        self.memory = MemoryStore(project_name)
-        self.graph = GraphStore(project_name)
+    """
+    Creative Director: Provides high-level creative oversight and guidance.
+    
+    Responsibilities:
+    - Evaluate creative quality
+    - Provide artistic direction
+    - Ensure thematic consistency
+    - Guide overall vision
+    
+    Now uses ModelClient for reliable model calls with retry logic.
+    """
 
-    def _call_model(self, prompt: str) -> str:
-        payload = {
-            "model": "Qwen/Qwen2.5-3B-Instruct",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.4
-        }
-        resp = requests.post(self.fast_model_url, json=payload)
-        return resp.json()["choices"][0]["message"]["content"]
-
-    def analyze_scene_critique(self, issues: str, original_text: str) -> Dict[str, Any]:
+    def evaluate_pipeline_output(
+        self,
+        outline: str,
+        world: str,
+        characters: str,
+    ) -> Dict[str, Any]:
         """
-        Turn raw continuity issues into:
-        - suggested canon rules
-        - guidance for revision
-        """
-        
-        # Check for feedback from EventBus
-        recent_messages = self.get_recent_messages(limit=5)
-        feedback_texts = [
-            msg.get('content', '') 
-            for msg in recent_messages 
-            if msg.get('type') == 'feedback'
-        ]
-        
-        human_feedback = "\n".join(feedback_texts) if feedback_texts else "None"
+        Evaluate story bible pipeline output.
 
+        Args:
+            outline: Generated plot outline
+            world: Generated world bible
+            characters: Generated character bible
+
+        Returns:
+            Dictionary with evaluation and suggestions
+
+        Raises:
+            ModelError: If model call fails after retries
+        """
+        # Build evaluation prompt
         prompt = f"""
-        You are a Creative Director overseeing a long-running sci-fi narrative.
+You are the Creative Director. Evaluate the following story bible components.
 
-        Human feedback:
-        \"\"\"{human_feedback}\"\"\"
+OUTLINE:
+{outline}
 
-        Continuity issues detected:
-        \"\"\"{issues}\"\"\"
+WORLD:
+{world}
 
-        Original scene:
-        \"\"\"{original_text}\"\"\"
+CHARACTERS:
+{characters}
 
-        Task:
-        - Summarize the core problem(s) in 2-4 bullet points.
-        - Propose 1-3 canon rules that would prevent similar issues.
-        - Provide high-level guidance for how scenes like this should be written in the future.
+Evaluate:
+1. Overall coherence and quality
+2. Thematic consistency
+3. Character depth and arcs
+4. World richness and logic
+5. Plot structure and pacing
 
-        Output format (JSON):
-        {{
-          "core_problems": ["...", "..."],
-          "proposed_canon_rules": ["...", "..."],
-          "guidance": "..."
-        }}
-        """
-        raw = self._call_model(prompt)
+Provide:
+- Overall score (1-10)
+- Strengths
+- Weaknesses
+- Specific improvement suggestions
+
+Format as JSON:
+{{
+    "score": <number>,
+    "strengths": ["strength1", "strength2"],
+    "weaknesses": ["weakness1", "weakness2"],
+    "suggestions": ["suggestion1", "suggestion2"]
+}}
+"""
+
+        # Use ModelClient for reliable model call
+        client = ModelClient(model_url=self.fast_model_url)
         
-        # Try to parse JSON
         try:
-            import json
-            data = json.loads(raw)
-        except Exception:
-            data = {
-                "core_problems": [raw],
-                "proposed_canon_rules": [],
-                "guidance": raw,
+            evaluation_text = client.complete_simple(
+                prompt=prompt,
+                temperature=0.7
+            )
+        except ModelError as e:
+            # Log error with details
+            self.audit_log.append(
+                event_type="agent_error_model",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "prompt_length": len(prompt),
+                },
+            )
+            raise
+
+        # Try to parse JSON response
+        try:
+            evaluation = json.loads(evaluation_text)
+        except json.JSONDecodeError:
+            # If not valid JSON, create simple structure
+            evaluation = {
+                "score": 7,
+                "strengths": ["Generated successfully"],
+                "weaknesses": ["Response not in JSON format"],
+                "suggestions": ["Re-run evaluation"],
+                "raw_response": evaluation_text,
             }
-        return data
 
-    def log_canon_rules(self, rules: List[str]) -> None:
-        """
-        Store canon rules in graph and memory.
-        """
-        if not rules:
-            return
-
-        for i, rule in enumerate(rules):
-            rule_id = f"CANON_{self.project_name}_{i}"
-            self.graph.add_canon_rule(rule_id=rule_id, rule=rule, scope=[], notes="Added by Creative Director")
-            self.memory.add(f"[CANON RULE] {rule}")
-
-    def send_guidance_message(self, guidance: str) -> None:
-        """
-        Send a message to ALL agents with high-level guidance.
-        """
-        if not guidance:
-            return
-
-        GLOBAL_AGENT_BUS.send(
-            project_name=self.project_name,
+        # Emit evaluation event
+        self.event_bus.emit(
+            event_type="creative_evaluation_complete",
             sender=self.name,
-            recipient="ALL",
-            msg_type="GUIDANCE",
+            recipient="broadcast",
+            payload=evaluation,
+        )
+
+        # Log completion
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="user",
+            payload={"evaluation": evaluation},
+        )
+
+        return evaluation
+
+    def provide_guidance(
+        self,
+        context: str,
+        question: str,
+    ) -> str:
+        """
+        Provide creative guidance for a specific question.
+
+        Args:
+            context: Relevant story/project context
+            question: Creative question to answer
+
+        Returns:
+            Creative guidance response
+
+        Raises:
+            ModelError: If model call fails after retries
+        """
+        # Build guidance prompt
+        prompt = f"""
+You are the Creative Director. Provide creative guidance.
+
+CONTEXT:
+{context}
+
+QUESTION:
+{question}
+
+Provide thoughtful, actionable creative guidance that:
+- Addresses the question directly
+- Considers artistic merit
+- Suggests concrete next steps
+- Maintains story vision
+"""
+
+        # Use ModelClient for reliable model call
+        client = ModelClient(model_url=self.fast_model_url)
+        
+        try:
+            guidance = client.complete_simple(
+                prompt=prompt,
+                temperature=0.8
+            )
+        except ModelError as e:
+            # Log error with details
+            self.audit_log.append(
+                event_type="agent_error_model",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "prompt_length": len(prompt),
+                    "question": question[:100],
+                },
+            )
+            raise
+
+        # Emit guidance event
+        self.event_bus.emit(
+            event_type="creative_guidance_provided",
+            sender=self.name,
+            recipient="broadcast",
             payload={"guidance": guidance},
         )
+
+        # Log completion
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="user",
+            payload={"guidance": guidance[:200]},
+        )
+
+        return guidance

@@ -29,6 +29,15 @@ SESSION_KEYS = [
     "seed_idea_pipeline",
     "memory_search_query",
     "new_memory_text",
+    # Producer Agent inputs
+    "producer_seed_idea",
+    "producer_model_mode",
+    "producer_goal_mode",
+    "producer_auto_memory",
+    "producer_run_continuity",
+    "producer_run_editor",
+    "producer_max_chapters",
+    "producer_chapter_index",
 ]
 
 
@@ -74,6 +83,28 @@ def load_state_into_session(state: Dict[str, Any]) -> None:
     st.session_state["seed_idea_pipeline"] = inputs.get("seed_idea_pipeline", "")
     st.session_state["memory_search_query"] = inputs.get("memory_search_query", "")
     st.session_state["new_memory_text"] = inputs.get("new_memory_text", "")
+    
+    # Load producer inputs (convert strings to proper types)
+    st.session_state["producer_seed_idea"] = inputs.get("producer_seed_idea", "")
+    st.session_state["producer_model_mode"] = inputs.get("producer_model_mode", "draft")
+    st.session_state["producer_goal_mode"] = inputs.get("producer_goal_mode", "story_bible")
+    
+    # Convert string booleans to actual booleans
+    auto_mem = inputs.get("producer_auto_memory", True)
+    st.session_state["producer_auto_memory"] = auto_mem if isinstance(auto_mem, bool) else (auto_mem == "True" or auto_mem == True)
+    
+    run_cont = inputs.get("producer_run_continuity", True)
+    st.session_state["producer_run_continuity"] = run_cont if isinstance(run_cont, bool) else (run_cont == "True" or run_cont == True)
+    
+    run_edit = inputs.get("producer_run_editor", True)
+    st.session_state["producer_run_editor"] = run_edit if isinstance(run_edit, bool) else (run_edit == "True" or run_edit == True)
+    
+    # Convert string numbers to integers
+    max_chap = inputs.get("producer_max_chapters", 20)
+    st.session_state["producer_max_chapters"] = int(max_chap) if isinstance(max_chap, (int, str)) else 20
+    
+    chap_idx = inputs.get("producer_chapter_index", 0)
+    st.session_state["producer_chapter_index"] = int(chap_idx) if isinstance(chap_idx, (int, str)) else 0
 
 
 def extract_state_from_session() -> Dict[str, Any]:
@@ -109,6 +140,14 @@ def extract_state_from_session() -> Dict[str, Any]:
             "seed_idea_pipeline": st.session_state.get("seed_idea_pipeline", ""),
             "memory_search_query": st.session_state.get("memory_search_query", ""),
             "new_memory_text": st.session_state.get("new_memory_text", ""),
+            "producer_seed_idea": st.session_state.get("producer_seed_idea", ""),
+            "producer_model_mode": st.session_state.get("producer_model_mode", "draft"),
+            "producer_goal_mode": st.session_state.get("producer_goal_mode", "story_bible"),
+            "producer_auto_memory": st.session_state.get("producer_auto_memory", True),
+            "producer_run_continuity": st.session_state.get("producer_run_continuity", True),
+            "producer_run_editor": st.session_state.get("producer_run_editor", True),
+            "producer_max_chapters": st.session_state.get("producer_max_chapters", 20),
+            "producer_chapter_index": st.session_state.get("producer_chapter_index", 0),
         }
     }
     return state

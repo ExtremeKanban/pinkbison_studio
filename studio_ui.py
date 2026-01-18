@@ -21,6 +21,7 @@ from ui.memory_add_ui import render_memory_add
 from ui.memory_browser_ui import render_memory_browser
 from ui.pipeline_history_ui import render_pipeline_history
 from ui.canon_rules_ui import render_canon_rules
+from ui.continuity_notes_ui import render_continuity_notes
 
 # Initialize session state for project data
 initialize_session_state()
@@ -53,3 +54,4 @@ render_memory_add(project_name)
 render_memory_browser(project_name)
 render_pipeline_history(project_name)
 render_canon_rules(project_name)
+render_continuity_notes(project_name)

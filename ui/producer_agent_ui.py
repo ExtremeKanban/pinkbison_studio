@@ -16,7 +16,15 @@ def render_producer_agent_panel(producer):
     - Full Story
     - Director Mode
     """
-
+    # Clean up bad session state values (from old code)
+    for key in ["producer_auto_memory", "producer_run_continuity", "producer_run_editor"]:
+        if key in st.session_state and not isinstance(st.session_state[key], bool):
+            del st.session_state[key]
+    
+    for key in ["producer_max_chapters", "producer_chapter_index"]:
+        if key in st.session_state and not isinstance(st.session_state[key], int):
+            del st.session_state[key]
+            
     st.header("Producer Agent (Autonomous Director)")
 
     # ---------------------------------------------------------
@@ -57,6 +65,9 @@ def render_producer_agent_panel(producer):
     # ---------------------------------------------------------
     # Model Mode Toggle
     # ---------------------------------------------------------
+    if "producer_model_mode" not in st.session_state or st.session_state["producer_model_mode"] not in ["draft", "high_quality"]:
+        st.session_state["producer_model_mode"] = "draft"
+    
     model_mode = st.radio(
         "Model Mode",
         options=["draft", "high_quality"],
@@ -70,6 +81,9 @@ def render_producer_agent_panel(producer):
     # ---------------------------------------------------------
     # Goal mode
     # ---------------------------------------------------------
+    # Ensure default value is valid
+    if "producer_goal_mode" not in st.session_state or st.session_state["producer_goal_mode"] not in ["story_bible", "chapter", "full_story", "director"]:
+        st.session_state["producer_goal_mode"] = "story_bible"
     goal_mode = st.selectbox(
         "Goal",
         options=["story_bible", "chapter", "full_story", "director"],
@@ -116,11 +130,12 @@ def render_producer_agent_panel(producer):
         value=True,
         key="producer_run_editor",
     )
+
     max_chapters = st.number_input(
         "Max chapters (for full story / director)",
         min_value=1,
         max_value=100,
-        value=20,
+        value=10,
         key="producer_max_chapters",
     )
 

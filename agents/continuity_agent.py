@@ -114,5 +114,13 @@ If no issues, respond: "CONTINUITY CHECK PASSED"
         if auto_memory:
             if "PASSED" not in continuity_report:
                 self.memory.add(f"Continuity issues found: {continuity_report[:300]}")
+        
+        # Save continuity note to project state
+        from core.project_state import ProjectState
+        state = ProjectState.load(self.project_name)
+        state.add_continuity_note(
+            note=f"Continuity check: {continuity_report[:200]}",
+            source="continuity_agent"
+        )
 
         return continuity_report

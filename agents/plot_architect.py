@@ -112,10 +112,10 @@ ACT 3: Resolution
             raise
 
         # Emit success event
-        self.event_bus.emit(
-            event_type="plot_outline_generated",
+        self.event_bus.publish(
             sender=self.name,
             recipient="broadcast",
+            msg_type="plot_outline_generated",
             payload={"outline": outline},
         )
 

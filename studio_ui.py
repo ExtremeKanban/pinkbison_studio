@@ -19,6 +19,8 @@ from ui.intelligence_panel import render_intelligence_panel
 from ui.memory_search_ui import render_memory_search
 from ui.memory_add_ui import render_memory_add
 from ui.memory_browser_ui import render_memory_browser
+from ui.pipeline_history_ui import render_pipeline_history
+from ui.canon_rules_ui import render_canon_rules
 
 # Initialize session state for project data
 initialize_session_state()
@@ -49,3 +51,5 @@ render_intelligence_panel(producer)
 render_memory_search(project_name)
 render_memory_add(project_name)
 render_memory_browser(project_name)
+render_pipeline_history(project_name)
+render_canon_rules(project_name)

@@ -42,6 +42,7 @@ class AgentFactory:
         from agents.plot_architect import PlotArchitect
         
         return PlotArchitect(
+            name="plot_architect",
             project_name=self.project_name,
             event_bus=self.event_bus,
             audit_log=self.audit_log,
@@ -54,6 +55,7 @@ class AgentFactory:
         from agents.worldbuilder import WorldbuilderAgent
         
         return WorldbuilderAgent(
+            name="worldbuilder",
             project_name=self.project_name,
             event_bus=self.event_bus,
             audit_log=self.audit_log,
@@ -66,6 +68,7 @@ class AgentFactory:
         from agents.character_agent import CharacterAgent
         
         return CharacterAgent(
+            name="character_agent",
             project_name=self.project_name,
             event_bus=self.event_bus,
             audit_log=self.audit_log,
@@ -78,6 +81,7 @@ class AgentFactory:
         from agents.scene_generator import SceneGeneratorAgent
         
         return SceneGeneratorAgent(
+            name="scene_generator",
             project_name=self.project_name,
             event_bus=self.event_bus,
             audit_log=self.audit_log,
@@ -90,6 +94,7 @@ class AgentFactory:
         from agents.continuity_agent import ContinuityAgent
         
         return ContinuityAgent(
+            name="continuity_agent",
             project_name=self.project_name,
             event_bus=self.event_bus,
             audit_log=self.audit_log,
@@ -102,6 +107,7 @@ class AgentFactory:
         from agents.editor_agent import EditorAgent
         
         return EditorAgent(
+            name="editor_agent",
             project_name=self.project_name,
             event_bus=self.event_bus,
             audit_log=self.audit_log,

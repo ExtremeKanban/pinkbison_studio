@@ -167,3 +167,29 @@ def merge_with_defaults(project_name: str, loaded: Dict[str, Any]) -> Dict[str, 
     """Legacy function - now uses ProjectState migration"""
     # This is handled by ProjectState.load automatically
     return loaded
+
+
+def reset_project(project_name: str) -> None:
+    """Reset project to default state (clear all data)"""
+    from core.registry import REGISTRY
+    import shutil
+    
+    # Clear project state
+    state = ProjectState.create_default(project_name)
+    state.save()
+    
+    # Clear memory
+    memory = REGISTRY.get_memory_store(project_name)
+    memory.clear()
+    
+    # Clear graph
+    graph = REGISTRY.get_graph_store(project_name)
+    graph.replace_graph({"entities": [], "relationships": [], "events": [], "canon_rules": []})
+    
+    # Clear outputs
+    outputs_dir = Path("project_state") / project_name / "outputs"
+    if outputs_dir.exists():
+        shutil.rmtree(outputs_dir)
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"[Loader] Reset project '{project_name}'")

@@ -1,5 +1,6 @@
 """
 Unified project state management with versioning and validation.
+Enhanced for Phase 1: Full Persistence Layer
 """
 
 import json
@@ -29,6 +30,14 @@ class PipelineResult:
 
 
 @dataclass
+class ContinuityNote:
+    """Continuity tracking note"""
+    timestamp: str
+    note: str
+    source: str = "continuity_agent"
+
+
+@dataclass
 class ProjectState:
     """
     Complete project state snapshot.
@@ -36,7 +45,8 @@ class ProjectState:
     Handles:
     - Metadata (genre, tone, themes, setting)
     - Agent outputs (outline, world, characters)
-    - Pipeline results
+    - Pipeline results history
+    - Continuity notes
     - UI inputs
     - Versioning and migration
     """
@@ -65,6 +75,9 @@ class ProjectState:
     # Pipeline results history
     pipeline_results: List[PipelineResult] = field(default_factory=list)
     
+    # Continuity tracking
+    continuity_notes: List[ContinuityNote] = field(default_factory=list)
+    
     # UI inputs
     inputs: Dict[str, str] = field(default_factory=dict)
     
@@ -84,6 +97,39 @@ class ProjectState:
         with FileLock(lock_path, timeout=10):
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+    
+    def add_pipeline_result(self, pipeline_type: str, result: Dict[str, Any]) -> None:
+        """Add a pipeline result to history and auto-save"""
+        pr = PipelineResult(
+            pipeline_type=pipeline_type,
+            timestamp=datetime.utcnow().isoformat(),
+            result=result
+        )
+        self.pipeline_results.append(pr)
+        self.save()
+        print(f"[ProjectState] Saved {pipeline_type} pipeline result to history")
+    
+    def add_continuity_note(self, note: str, source: str = "continuity_agent") -> None:
+        """Add a continuity note and auto-save"""
+        cn = ContinuityNote(
+            timestamp=datetime.utcnow().isoformat(),
+            note=note,
+            source=source
+        )
+        self.continuity_notes.append(cn)
+        self.save()
+        print(f"[ProjectState] Saved continuity note from {source}")
+    
+    def get_latest_pipeline_result(self, pipeline_type: Optional[str] = None) -> Optional[PipelineResult]:
+        """Get most recent pipeline result, optionally filtered by type"""
+        if not self.pipeline_results:
+            return None
+        
+        if pipeline_type:
+            filtered = [pr for pr in self.pipeline_results if pr.pipeline_type == pipeline_type]
+            return filtered[-1] if filtered else None
+        
+        return self.pipeline_results[-1]
     
     @classmethod
     def load(cls, project_name: str, base_dir: str = "project_state") -> "ProjectState":
@@ -127,23 +173,32 @@ class ProjectState:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         data = asdict(self)
-        # Convert ProjectMeta to dict
         data['meta'] = asdict(self.meta)
+        data['pipeline_results'] = [asdict(pr) for pr in self.pipeline_results]
+        data['continuity_notes'] = [asdict(cn) for cn in self.continuity_notes]
         return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ProjectState":
         """Create from dictionary"""
-        # Handle nested ProjectMeta
         if 'meta' in data and isinstance(data['meta'], dict):
             data['meta'] = ProjectMeta(**data['meta'])
         
-        # Handle pipeline_results
         if 'pipeline_results' in data:
             data['pipeline_results'] = [
                 PipelineResult(**r) if isinstance(r, dict) else r
                 for r in data['pipeline_results']
             ]
+        else:
+            data['pipeline_results'] = []
+        
+        if 'continuity_notes' in data:
+            data['continuity_notes'] = [
+                ContinuityNote(**n) if isinstance(n, dict) else n
+                for n in data['continuity_notes']
+            ]
+        else:
+            data['continuity_notes'] = []
         
         return cls(**data)
     
@@ -159,17 +214,17 @@ class ProjectState:
     @classmethod
     def _migrate(cls, data: Dict[str, Any], from_version: str) -> Dict[str, Any]:
         """Migrate data from old version to current"""
-        # Example migration logic
         if from_version == '0.0.0':
-            # Old format from projects/*.json
             data['version'] = '1.0.0'
             
-            # Ensure all required fields exist
             if 'meta' not in data:
                 data['meta'] = asdict(ProjectMeta())
             
             if 'pipeline_results' not in data:
                 data['pipeline_results'] = []
+            
+            if 'continuity_notes' not in data:
+                data['continuity_notes'] = []
             
             if 'created_at' not in data:
                 data['created_at'] = datetime.utcnow().isoformat()

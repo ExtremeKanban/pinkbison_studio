@@ -114,6 +114,15 @@ def render_sidebar():
 
     # Danger Zone
     st.sidebar.markdown("### 🔥 Danger Zone")
+    
+    if st.sidebar.button("Reset Current Project"):
+        from project_manager.loader import reset_project
+        name = st.session_state["current_project"]
+        reset_project(name)
+        load_state_into_session(load_project_state(name))
+        st.sidebar.success(f"Reset project '{name}'.")
+        st.rerun()
+    
     if st.sidebar.button("Delete Current Project"):
         name = st.session_state["current_project"]
         if name == "default_project":

@@ -19,13 +19,17 @@ class AgentBase:
     """
     
     def __init__(self, name: str, project_name: str, event_bus: EventBus,
-                 audit_log: AuditLog, fast_model_url: str, model_mode: str):
+             audit_log: AuditLog, fast_model_url: str, model_mode: str):
         self.name = name
         self.project_name = project_name
         self.event_bus = event_bus
         self.audit_log = audit_log
         self.fast_model_url = fast_model_url
         self.model_mode = model_mode
+        
+        # Add memory access
+        from memory_store import MemoryStore
+        self.memory = MemoryStore(project_name)
     
     def log(self, content: str, event_type: str = "info") -> None:
         """Log to both EventBus (ephemeral) and AuditLog (persistent)"""

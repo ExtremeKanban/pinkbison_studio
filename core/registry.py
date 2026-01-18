@@ -10,6 +10,7 @@ from agent_bus import AgentBus
 from memory_store import MemoryStore
 from graph_store import GraphStore
 from task_manager import TaskManager
+from core.output_manager import OutputManager
 
 
 class ProjectRegistry:
@@ -37,6 +38,7 @@ class ProjectRegistry:
         self._memory_stores: Dict[str, MemoryStore] = {}
         self._graph_stores: Dict[str, GraphStore] = {}
         self._task_managers: Dict[str, TaskManager] = {}
+        self._output_managers: Dict[str, "OutputManager"] = {}
     
     def get_event_bus(self, project_name: str) -> EventBus:
         """Get or create EventBus for project"""
@@ -74,6 +76,12 @@ class ProjectRegistry:
             self._task_managers[project_name] = TaskManager(project_name)
         return self._task_managers[project_name]
     
+    def get_output_manager(self, project_name: str) -> OutputManager:
+        """Get or create OutputManager for project"""
+        if project_name not in self._output_managers:
+            self._output_managers[project_name] = OutputManager(project_name)
+        return self._output_managers[project_name]
+    
     def clear_project(self, project_name: str) -> None:
         """
         Remove all instances for a project.
@@ -89,6 +97,7 @@ class ProjectRegistry:
         self._memory_stores.pop(project_name, None)
         self._graph_stores.pop(project_name, None)
         self._task_managers.pop(project_name, None)
+        self._output_managers.pop(project_name, None)
     
     def clear_all(self) -> None:
         """Clear all projects (for tests)"""

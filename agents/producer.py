@@ -1,43 +1,35 @@
 """
-ProducerAgent - High-level orchestrator for creative pipelines.
+ProducerAgent orchestrates multi-step creative pipelines.
 
-NOTE: ProducerAgent does NOT inherit from AgentBase because it manages
-other agents rather than being a peer agent. It creates agents via
-AgentFactory and coordinates their work.
+Does NOT inherit from AgentBase.
+Creates fresh agent instances via AgentFactory for each pipeline step.
 """
 
-import json
-import requests
 from typing import Dict, Any, List
-
+from agents.base_agent import AgentBase
 from core.event_bus import EventBus
 from core.audit_log import AuditLog
 from core.agent_factory import AgentFactory
-from models.heavy_model import generate_with_heavy_model
+from core.project_state import ProjectState
+from core.registry import REGISTRY
 
 
 class ProducerAgent:
     """
-    High-level orchestrator that coordinates other agents to run pipelines.
+    Orchestrates multi-step creative pipelines.
     
-    Changes from old version:
-    - Uses AgentFactory to create fresh agent instances per task
-    - EventBus + AuditLog integration
-    - No longer stores agent instances (creates on-demand)
+    Does not inherit from AgentBase - it creates and coordinates other agents.
+    Uses AgentFactory to create fresh agent instances for each step.
     """
 
     def __init__(self, project_name: str, event_bus: EventBus, audit_log: AuditLog,
-                 fast_model_url: str, model_mode: str):
+                 fast_model_url: str, model_mode: str = "fast"):
         self.project_name = project_name
-        self.name = "producer"
-        self._last_msg_id = None
-
-        self.model_mode = model_mode
-        self.fast_model_url = fast_model_url
         self.event_bus = event_bus
         self.audit_log = audit_log
-
-        # Agent factory for creating fresh instances
+        self.fast_model_url = fast_model_url
+        self.model_mode = model_mode
+        
         self.agent_factory = AgentFactory(
             project_name=project_name,
             event_bus=event_bus,
@@ -45,75 +37,24 @@ class ProducerAgent:
             fast_model_url=fast_model_url,
             model_mode=model_mode
         )
-
-    def handle_feedback(self, agent_name: str, feedback_text: str) -> None:
-        """Route feedback to agent via EventBus"""
-        self.event_bus.publish(
-            sender="user",
-            recipient=agent_name,
-            event_type="feedback",
-            payload={"content": feedback_text, "type": "feedback"}
-        )
         
-        self.audit_log.append(
-            event_type="user_feedback",
-            sender="user",
-            recipient=agent_name,
-            payload={"content": feedback_text}
-        )
-
-    def poll_agent_messages(self):
-        """Get recent messages from EventBus"""
-        return self.event_bus.get_recent(self.name, limit=20)
-
-    def get_intelligence_messages(
-        self, 
-        recipient: str = "all", 
-        limit: int = 10
-    ) -> list:
-        """
-        Get messages from agent bus for a recipient.
-        
-        Uses Registry pattern instead of global bus.
-        
-        Args:
-            recipient: Agent name or "all" for broadcast
-            limit: Maximum messages to return
-            
-        Returns:
-            List of messages for the recipient
-        """
-        from core.registry import REGISTRY
-        
-        agent_bus = REGISTRY.get_agent_bus(self.project_name)
-        msgs = agent_bus.get_for(
-            recipient=recipient if recipient != "all" else "broadcast",
-            limit=limit
-        )
-        return msgs
-
-    def get_continuity_critiques(self):
-        """Get continuity critiques from legacy bus"""
-        msgs = self.fetch_messages()
-        return [
-            m for m in msgs
-            if m.sender == "continuity" and m.type == "CRITIQUE"
-        ]
+        self.output_manager = REGISTRY.get_output_manager(project_name)
 
     # ---------------------------------------------------------
     # Story Bible Pipeline
     # ---------------------------------------------------------
     def run_story_bible_pipeline(self, idea: str, genre: str, tone: str,
-                                  themes: str, setting: str,
-                                  auto_memory: bool = True) -> dict:
+                                 themes: str, setting: str,
+                                 auto_memory: bool = True) -> dict:
         """
-        Generate story bible: outline + world + characters.
+        Generate story bible (outline, world, characters).
+        
         Creates fresh agent instances for each step.
         """
         
-        # Create fresh PlotArchitect
-        plot_architect = self.agent_factory.create_plot_architect()
-        outline = plot_architect.run(
+        # 1) Outline
+        plot_agent = self.agent_factory.create_plot_architect()
+        outline = plot_agent.run(
             idea=idea,
             genre=genre,
             tone=tone,
@@ -122,9 +63,9 @@ class ProducerAgent:
             auto_memory=auto_memory,
         )
 
-        # Create fresh Worldbuilder
-        worldbuilder = self.agent_factory.create_worldbuilder()
-        world_doc = worldbuilder.run(
+        # 2) World
+        world_agent = self.agent_factory.create_worldbuilder()
+        world_doc = world_agent.run(
             outline=outline,
             genre=genre,
             tone=tone,
@@ -133,126 +74,77 @@ class ProducerAgent:
             auto_memory=auto_memory,
         )
 
-        # Create fresh CharacterAgent
-        character_agent = self.agent_factory.create_character_agent()
-        character_doc = character_agent.run(
+        # 3) Characters
+        char_agent = self.agent_factory.create_character_agent()
+        character_doc = char_agent.run(
+            world_doc=world_doc,
             outline=outline,
-            world_notes=world_doc,
+            genre=genre,
+            tone=tone,
             auto_memory=auto_memory,
         )
 
-        return {
+        result = {
             "outline": outline,
             "world": world_doc,
             "characters": character_doc,
         }
-
-    # ---------------------------------------------------------
-    # Scene Pipeline
-    # ---------------------------------------------------------
-    def generate_scene_with_checks(self, scene_prompt: str, outline_snippet: str,
-                                    world_notes: str, character_notes: str,
-                                    auto_memory: bool = True,
-                                    run_continuity: bool = True,
-                                    run_editor: bool = True) -> dict:
-        """
-        Generate scene with continuity and editor checks.
-        Creates fresh agent instances for each step.
-        """
         
-        # Create fresh SceneGenerator
-        scene_generator = self.agent_factory.create_scene_generator()
-        scene_raw = scene_generator.run(
-            scene_prompt=scene_prompt,
-            outline_snippet=outline_snippet,
-            world_notes=world_notes,
-            character_notes=character_notes,
-            auto_memory=auto_memory,
-        )
-
-        scene_after_continuity = scene_raw
-        if run_continuity:
-            continuity_agent = self.agent_factory.create_continuity_agent()
-            scene_after_continuity = continuity_agent.run(scene_raw)
-
-            critiques = self.get_continuity_critiques()
-            if critiques:
-                print("\n[ProducerAgent] Continuity messages received:")
-                for c in critiques:
-                    print(f"- {c.payload.get('issues')}")
-
-        scene_final = scene_after_continuity
-        if run_editor:
-            editor_agent = self.agent_factory.create_editor_agent()
-            scene_final = editor_agent.run(scene_after_continuity)
-
-        return {
-            "raw": scene_raw,
-            "after_continuity": scene_after_continuity,
-            "final": scene_final,
-        }
+        # Save to pipeline history
+        self._save_pipeline_result("story_bible", result)
+        
+        return result
 
     # ---------------------------------------------------------
-    # Outline → JSON Chapter Plan
+    # Chapter Planning
     # ---------------------------------------------------------
     def plan_chapters_from_outline(self, outline: str, max_chapters: int = 20) -> dict:
-        """Convert outline into structured chapter plan"""
+        """
+        Use PlotArchitect to break outline into chapter plans.
+        
+        Creates fresh PlotArchitect instance.
+        """
+        
+        plot_agent = self.agent_factory.create_plot_architect()
         
         prompt = f"""
-        Convert the following outline into STRICT JSON with chapters:
+Given this story outline:
 
-        Outline:
-        \"\"\"{outline}\"\"\"
+{outline}
 
-        Requirements:
-        - Return ONLY valid JSON.
-        - Top-level key: "chapters"
-        - Each chapter must have:
-          - "title"
-          - "summary"
-          - "beats"
-        - No commentary, no markdown.
-        - Max chapters: {max_chapters}
-        """
+Break it into {max_chapters} chapters. For each chapter, provide:
+- Chapter title
+- 3-5 story beats (key events/scenes)
 
-        if self.model_mode == "high_quality":
-            raw = generate_with_heavy_model(prompt)
-        else:
-            payload = {
-                "model": "Qwen/Qwen2.5-3B-Instruct",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.4,
-            }
-            response = requests.post(self.fast_model_url, json=payload)
-            raw = response.json()["choices"][0]["message"]["content"]
-
-        raw = raw.strip()
-
+Format as JSON:
+{{
+  "chapters": [
+    {{"title": "...", "beats": ["...", "..."]}},
+    ...
+  ]
+}}
+"""
+        
+        response = plot_agent.call_model(prompt)
+        
+        import json
         try:
-            return json.loads(raw)
-        except Exception:
-            pass
+            plan = json.loads(response)
+        except:
+            plan = {"chapters": []}
+        
+        return plan
 
-        # Clean markdown fences if present
-        cleaned = raw
-        if "```" in raw:
-            parts = raw.split("```")
-            blocks = [p for p in parts if "{" in p and "}" in p]
-            if blocks:
-                cleaned = blocks[0].replace("json\n", "").strip()
-
-        return json.loads(cleaned)
-
-    # ---------------------------------------------------------
-    # Chapter Generation (internal helper)
-    # ---------------------------------------------------------
-    def _generate_chapter_from_plan(self, chapter_plan: dict, outline: str,
-                                     world_doc: str, character_doc: str,
-                                     auto_memory: bool = True,
-                                     run_continuity: bool = True,
-                                     run_editor: bool = True) -> dict:
+    def _generate_chapter_from_plan(self, chapter_plan: dict,
+                                   outline: str,
+                                   world_doc: str,
+                                   character_doc: str,
+                                   auto_memory: bool = True,
+                                   run_continuity: bool = True,
+                                   run_editor: bool = True) -> dict:
         """
         Generate a single chapter from a chapter plan.
+        
         Creates fresh agent instances.
         """
         
@@ -335,7 +227,7 @@ class ProducerAgent:
             run_editor=run_editor,
         )
 
-        return {
+        result = {
             "outline": outline,
             "world": world_doc,
             "characters": character_doc,
@@ -343,6 +235,14 @@ class ProducerAgent:
             "chapter_index": chapter_index,
             "chapter": chapter_result,
         }
+        
+        # Save chapter to outputs
+        self.output_manager.save_chapter(chapter_index, chapter_result)
+        
+        # Save to pipeline history
+        self._save_pipeline_result("chapter", result)
+        
+        return result
 
     # ---------------------------------------------------------
     # Full Story Pipeline
@@ -371,12 +271,13 @@ class ProducerAgent:
         plan = self.plan_chapters_from_outline(outline, max_chapters=max_chapters)
         chapters_plan = plan.get("chapters", [])
 
-        chapter_results = []
-        for idx, chapter_plan in enumerate(chapters_plan):
-            if idx >= max_chapters:
-                break
+        if not chapters_plan:
+            raise ValueError("Chapter plan has no chapters.")
 
-            print(f"[ProducerAgent] Generating chapter {idx + 1}: {chapter_plan.get('title', 'Untitled')}")
+        chapters = []
+        for idx, chapter_plan in enumerate(chapters_plan):
+            print(f"[ProducerAgent] Generating chapter {idx + 1}/{len(chapters_plan)}")
+            
             chapter_result = self._generate_chapter_from_plan(
                 chapter_plan,
                 outline=outline,
@@ -386,21 +287,34 @@ class ProducerAgent:
                 run_continuity=run_continuity,
                 run_editor=run_editor,
             )
-            chapter_results.append(chapter_result)
+            
+            chapters.append(chapter_result)
 
-        full_story_text = "\n\n".join(ch["final"] for ch in chapter_results)
+        full_story_text = "\n\n".join(ch["final"] for ch in chapters)
+        
+        # Save each chapter to outputs
+        for idx, chapter in enumerate(chapters):
+            self.output_manager.save_chapter(idx, chapter)
+        
+        # Save full story draft
+        self.output_manager.save_draft("full_story", full_story_text)
 
-        return {
+        result = {
             "outline": outline,
             "world": world_doc,
             "characters": character_doc,
             "plan": plan,
-            "chapters": chapter_results,
+            "chapters": chapters,
             "full_story": full_story_text,
         }
-
+        
+        # Save to pipeline history
+        self._save_pipeline_result("full_story", result)
+        
+        return result
+    
     # ---------------------------------------------------------
-    # Director Mode
+    # Director Mode (with revision passes)
     # ---------------------------------------------------------
     def run_director_mode(self, idea: str, genre: str, tone: str,
                          themes: str, setting: str,
@@ -445,8 +359,15 @@ class ProducerAgent:
             chapters = revised
 
         full_story_text = "\n\n".join(ch["final"] for ch in chapters)
+        
+        # Save each chapter to outputs
+        for idx, chapter in enumerate(chapters):
+            self.output_manager.save_chapter(idx, chapter)
+        
+        # Save full story draft
+        self.output_manager.save_draft("director_mode", full_story_text)
 
-        return {
+        result = {
             "outline": base["outline"],
             "world": base["world"],
             "characters": base["characters"],
@@ -454,3 +375,38 @@ class ProducerAgent:
             "chapters": chapters,
             "full_story": full_story_text,
         }
+        
+        # Save to pipeline history
+        self._save_pipeline_result("director", result)
+        
+        return result
+    
+    # ---------------------------------------------------------
+    # Helper Methods
+    # ---------------------------------------------------------
+    def handle_feedback(self, agent_name: str, feedback_text: str) -> None:
+        """
+        Send feedback to an agent via EventBus.
+        
+        Agent will receive it on next pipeline run.
+        """
+        self.event_bus.publish(
+            sender="producer",
+            recipient=agent_name,
+            msg_type="user_feedback",
+            payload={"feedback": feedback_text}
+        )
+        
+        self.audit_log.append(
+            event_type="user_feedback",
+            sender="producer",
+            recipient=agent_name,
+            payload={"feedback": feedback_text}
+        )
+        
+        print(f"[ProducerAgent] Sent feedback to {agent_name}")
+
+    def _save_pipeline_result(self, pipeline_type: str, result: Dict[str, Any]) -> None:
+        """Save pipeline result to project state"""
+        state = ProjectState.load(self.project_name)
+        state.add_pipeline_result(pipeline_type, result)

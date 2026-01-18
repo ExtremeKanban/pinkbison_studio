@@ -88,6 +88,7 @@ ACT 3: Resolution
 """
 
         # Use ModelClient for reliable model call
+        from models.model_client import ModelClient
         client = ModelClient(model_url=self.fast_model_url)
         
         try:
@@ -95,7 +96,7 @@ ACT 3: Resolution
                 prompt=prompt,
                 temperature=0.8
             )
-        except ModelError as e:
+        except Exception as e:
             # Log error with details
             self.audit_log.append(
                 event_type="agent_error_model",
@@ -111,11 +112,11 @@ ACT 3: Resolution
             # Re-raise so caller knows it failed
             raise
 
-        # Emit success event
+        # Publish success event (CORRECTED: use event_type not msg_type)
         self.event_bus.publish(
             sender=self.name,
-            recipient="broadcast",
-            msg_type="plot_outline_generated",
+            recipient="ALL",
+            event_type="plot_outline_generated",
             payload={"outline": outline},
         )
 
@@ -124,7 +125,7 @@ ACT 3: Resolution
             event_type="agent_completion",
             sender=self.name,
             recipient="user",
-            payload={"outline": outline[:200]},  # First 200 chars
+            payload={"outline": outline[:200]},
         )
 
         # Store in memory if requested

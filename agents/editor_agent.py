@@ -96,10 +96,10 @@ Provide the polished scene.
             raise
 
         # Emit success event
-        self.event_bus.emit(
-            event_type="scene_edited",
+        self.event_bus.publish(
             sender=self.name,
-            recipient="broadcast",
+            recipient="ALL",
+            event_type="scene_edited",
             payload={"edited_scene": edited_scene},
         )
 

@@ -95,10 +95,10 @@ If no issues, respond: "CONTINUITY CHECK PASSED"
             raise
 
         # Emit success event
-        self.event_bus.emit(
-            event_type="continuity_check_complete",
+        self.event_bus.publish(
             sender=self.name,
-            recipient="broadcast",
+            recipient="ALL",
+            event_type="continuity_check_complete",
             payload={"report": continuity_report},
         )
 

@@ -77,10 +77,8 @@ class ProducerAgent:
         # 3) Characters
         char_agent = self.agent_factory.create_character_agent()
         character_doc = char_agent.run(
-            world_doc=world_doc,
             outline=outline,
-            genre=genre,
-            tone=tone,
+            world_notes=world_doc,
             auto_memory=auto_memory,
         )
 

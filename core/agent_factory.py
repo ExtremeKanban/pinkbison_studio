@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agents.plot_architect import PlotArchitect
-    from agents.worldbuilder import WorldbuilderAgent
+    from agents.worldbuilder import Worldbuilder
     from agents.character_agent import CharacterAgent
-    from agents.scene_generator import SceneGeneratorAgent
+    from agents.scene_generator import SceneGenerator
     from agents.continuity_agent import ContinuityAgent
     from agents.editor_agent import EditorAgent
 
@@ -50,11 +50,11 @@ class AgentFactory:
             model_mode=self.model_mode
         )
     
-    def create_worldbuilder(self) -> "WorldbuilderAgent":
-        """Create fresh WorldbuilderAgent instance"""
-        from agents.worldbuilder import WorldbuilderAgent
+    def create_worldbuilder(self) -> "Worldbuilder":
+        """Create fresh Worldbuilder instance"""
+        from agents.worldbuilder import Worldbuilder
         
-        return WorldbuilderAgent(
+        return Worldbuilder(
             name="worldbuilder",
             project_name=self.project_name,
             event_bus=self.event_bus,
@@ -76,11 +76,11 @@ class AgentFactory:
             model_mode=self.model_mode
         )
     
-    def create_scene_generator(self) -> "SceneGeneratorAgent":
-        """Create fresh SceneGeneratorAgent instance"""
-        from agents.scene_generator import SceneGeneratorAgent
+    def create_scene_generator(self) -> "SceneGenerator":
+        """Create fresh SceneGenerator instance"""
+        from agents.scene_generator import SceneGenerator
         
-        return SceneGeneratorAgent(
+        return SceneGenerator(
             name="scene_generator",
             project_name=self.project_name,
             event_bus=self.event_bus,

@@ -98,10 +98,10 @@ Provide a comprehensive world bible covering:
             raise
 
         # Emit success event
-        self.event_bus.emit(
-            event_type="world_bible_generated",
+        self.event_bus.publish(
             sender=self.name,
-            recipient="broadcast",
+            recipient="ALL",
+            event_type="world_bible_generated",
             payload={"world": world_doc},
         )
 

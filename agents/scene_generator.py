@@ -94,10 +94,10 @@ Write a vivid, engaging scene with:
             raise
 
         # Emit success event
-        self.event_bus.emit(
-            event_type="scene_generated",
+        self.event_bus.publish(
             sender=self.name,
-            recipient="broadcast",
+            recipient="ALL",
+            event_type="scene_generated",
             payload={"scene": scene_text},
         )
 

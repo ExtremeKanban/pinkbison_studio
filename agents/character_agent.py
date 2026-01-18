@@ -90,10 +90,10 @@ For each major character, provide:
             raise
 
         # Emit success event
-        self.event_bus.emit(
-            event_type="character_bible_generated",
+        self.event_bus.publish(
             sender=self.name,
-            recipient="broadcast",
+            recipient="ALL",
+            event_type="character_bible_generated",
             payload={"characters": characters_doc},
         )
 

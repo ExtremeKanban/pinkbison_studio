@@ -17,6 +17,7 @@
   "pipeline_world": "",
   "pipeline_characters": "",
   "pipeline_results": [],
+  "continuity_notes": [],
   "inputs": {
     "seed_idea_plot": "",
     "outline_for_world": "",
@@ -30,6 +31,6 @@
     "memory_search_query": "",
     "new_memory_text": ""
   },
-  "created_at": "2026-01-17T00:59:56.581882",
-  "updated_at": "2026-01-17T00:59:56.581882"
+  "created_at": "2026-01-18T19:14:25.993350",
+  "updated_at": "2026-01-18T19:14:25.993350"
 }

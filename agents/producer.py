@@ -6,13 +6,17 @@ Creates fresh agent instances via AgentFactory for each pipeline step.
 """
 
 from typing import Dict, Any, List
+from xmlrpc import client
+
+from click import prompt
 from agents.base_agent import AgentBase
 from core.event_bus import EventBus
 from core.audit_log import AuditLog
 from core.agent_factory import AgentFactory
 from core.project_state import ProjectState
 from core.registry import REGISTRY
-
+from models.model_client import ModelClient
+        
 
 class ProducerAgent:
     """
@@ -97,39 +101,57 @@ class ProducerAgent:
     # Chapter Planning
     # ---------------------------------------------------------
     def plan_chapters_from_outline(self, outline: str, max_chapters: int = 20) -> dict:
-        """
-        Use PlotArchitect to break outline into chapter plans.
-        
-        Creates fresh PlotArchitect instance.
-        """
-        
-        plot_agent = self.agent_factory.create_plot_architect()
+        """Generate chapter plan from outline"""
         
         prompt = f"""
-Given this story outline:
+Given this outline, create a chapter-by-chapter breakdown.
 
+Outline:
 {outline}
 
-Break it into {max_chapters} chapters. For each chapter, provide:
-- Chapter title
-- 3-5 story beats (key events/scenes)
+Create up to {max_chapters} chapters. For each chapter provide:
+- Title
+- 3-5 key beats/scenes
 
-Format as JSON:
+Return ONLY a JSON object with this structure:
 {{
   "chapters": [
-    {{"title": "...", "beats": ["...", "..."]}},
+    {{
+      "title": "Chapter 1 Title",
+      "beats": ["Scene 1 description", "Scene 2 description", "Scene 3 description"]
+    }},
     ...
   ]
 }}
+
+Do not include any other text, just the JSON.
 """
+
+        from models.model_client import ModelClient
+        client = ModelClient(model_url=self.fast_model_url)
+        response = client.complete_simple(prompt=prompt, temperature=0.7)
         
-        response = plot_agent.call_model(prompt)
-        
+        # Parse JSON response
         import json
+        import re
+        
+        # Try to extract JSON from response
         try:
-            plan = json.loads(response)
-        except:
-            plan = {"chapters": []}
+            # Remove markdown code blocks if present
+            clean = re.sub(r'```json\s*|\s*```', '', response).strip()
+            plan = json.loads(clean)
+        except json.JSONDecodeError:
+            # Fallback: create simple plan
+            print(f"[ProducerAgent] Failed to parse chapter plan, using fallback")
+            plan = {
+                "chapters": [
+                    {
+                        "title": f"Chapter {i+1}",
+                        "beats": [f"Scene from outline section {i+1}"]
+                    }
+                    for i in range(min(3, max_chapters))
+                ]
+            }
         
         return plan
 

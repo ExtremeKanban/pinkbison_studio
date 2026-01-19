@@ -1,11 +1,5 @@
 {
-  "entities": {
-    "character": {},
-    "location": {},
-    "faction": {},
-    "artifact": {},
-    "concept": {}
-  },
+  "entities": [],
   "relationships": [],
   "events": [],
   "canon_rules": []

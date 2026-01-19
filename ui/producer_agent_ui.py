@@ -218,10 +218,9 @@ def render_producer_agent_panel(producer):
                     max_revision_passes=2,
                 )
 
-        # Save into session & project
+        # Save into session only (Producer already saved pipeline results to ProjectState)
         st.session_state["producer_last_result"] = result
-        save_project_state(producer.project_name, extract_state_from_session())
-
+        # DON'T call save_project_state here - it overwrites pipeline_results!
         # ---------------------------------------------------------
         # Output Rendering
         # ---------------------------------------------------------

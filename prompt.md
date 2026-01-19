@@ -2,23 +2,15 @@
 QUICK REFERENCE
 --------------------------------
 
-**Project**: Local agentic AI creative studio
-**Current State**: Single-project orchestrator, partial persistence (memory/graph only)
-**Stack**: Python 3.x, Streamlit, FAISS, PyTorch, local Qwen LLMs (vLLM + Transformers)
+**Project**: Local agentic AI creative studio  
+**Current State**: EventBus + AuditLog architecture, full persistence layer complete, single-project orchestrator  
+**Stack**: Python 3.x, Streamlit, FAISS, PyTorch, local Qwen LLMs (vLLM + Transformers)  
 **Environment**: Windows 11 + WSL Ubuntu, Nvidia GPU
 
-**Immediate Focus**: Phase 0 - Architecture Review
-**Next Phases**: 1. Full persistence → 2. Multi-project orchestrator → 3. Real-time feedback
+**Immediate Focus**: Multi-Project Orchestrator  
+**Next Phases**: Real-time feedback → Smoke test isolation → Autonomous revision → GitHub setup
 
-**Current Pain Points** (priority order):
-1. Must manually start/stop orchestrator per project
-2. Agent outputs not persisted (lost on restart)
-3. IntelligenceBus messages not persisted
-4. Cannot give feedback during pipeline execution
-5. Project switching is fragile
-6. No isolation in smoke tests
-
-I'm building a modular, agentic AI creative studio in Python with Streamlit and a background Orchestrator. I want you to understand exactly what I've already built, what my current architecture looks like, and what's still on the roadmap—starting with a multi-project orchestrator and full persistence.
+I'm building a modular, agentic AI creative studio in Python with Streamlit and a background Orchestrator. I want you to understand exactly what I've already built, what my current architecture looks like, and what's still on the roadmap.
 
 Please read this carefully and treat it as the ground truth for this project.
 
@@ -32,24 +24,32 @@ CURRENT FILE STRUCTURE
 
 ```
 project_root/
+├── core/                          # Infrastructure components
+│   ├── event_bus.py              # Ephemeral message passing
+│   ├── audit_log.py              # Persistent event log
+│   ├── project_state.py          # Unified state management
+│   ├── agent_factory.py          # Stateless agent creation
+│   ├── output_manager.py         # Chapter/draft file management
+│   └── registry.py               # Project-scoped resource manager
 ├── agents/
-│   ├── base_agent.py              # Base class for all agents
+│   ├── base_agent.py             # Base class for all agents
 │   ├── plot_architect.py
 │   ├── worldbuilder.py
 │   ├── character_agent.py
 │   ├── scene_generator.py
 │   ├── continuity_agent.py
 │   ├── editor_agent.py
-│   ├── producer.py                # Does NOT inherit from AgentBase
+│   ├── producer.py               # Does NOT inherit from AgentBase
 │   ├── creative_director.py
 │   └── memory_extractor.py
 ├── models/
-│   ├── fast_model_client.py       # vLLM client (Qwen2.5-3B)
-│   └── heavy_model.py             # Transformers (Qwen2.5-7B)
+│   ├── model_client.py           # Unified model client with retry
+│   ├── fast_model_client.py     # vLLM client (Qwen2.5-3B)
+│   └── heavy_model.py            # Transformers (Qwen2.5-7B)
 ├── ui/
 │   ├── character_ui.py
 │   ├── general_playground.py
-│   ├── intelligence_panel.py      # Read-only agent message viewer
+│   ├── intelligence_panel.py     # EventBus + AuditLog viewer
 │   ├── memory_add_ui.py
 │   ├── memory_browser_ui.py
 │   ├── memory_search_ui.py
@@ -58,45 +58,59 @@ project_root/
 │   ├── scene_pipeline_ui.py
 │   ├── sidebar.py
 │   ├── story_bible_ui.py
-│   └── worldbuilder_ui.py
+│   ├── worldbuilder_ui.py
+│   ├── pipeline_history_ui.py    # View past pipeline results
+│   ├── canon_rules_ui.py         # View/manage canon rules
+│   └── continuity_notes_ui.py    # View continuity check history
 ├── project_manager/
-│   ├── loader.py
-│   ├── registry.py
-│   └── state.py
+│   ├── loader.py                 # Project loading/saving
+│   ├── registry.py               # Project registry
+│   └── state.py                  # Session state management
+├── project_state/                # Per-project persistent data
+│   └── <project_name>/
+│       ├── state.json            # Unified project state
+│       ├── graph.json            # Knowledge graph
+│       ├── audit.jsonl           # Audit log
+│       ├── tasks.json            # Task queue
+│       ├── memory/
+│       │   ├── index.faiss       # FAISS index
+│       │   ├── texts.json        # Memory texts
+│       │   └── embeddings.npy    # Embeddings
+│       └── outputs/
+│           ├── chapters/
+│           │   ├── chapter_000.json
+│           │   └── ...
+│           ├── scenes/
+│           └── drafts/
+│               └── full_story_TIMESTAMP.txt
+├── audit_logs/                   # Centralized audit logs
+│   └── <project_name>_audit.jsonl
 ├── tests/
-│   ├── smoke_test.py              # Uses default project, no isolation yet
-│   ├── utils.py
-│   └── test_data/
-│       └── sample_inputs.json
-├── graphs/
-│   └── default_project_graph.json # Per-project graph storage
-├── projects/
-│   ├── default_project.json
-│   ├── test_project.json
-│   └── test_project2.json
-├── tasks/
-│   └── default_project_tasks.json
+│   ├── smoke_test.py             # End-to-end test (needs isolation)
+│   ├── migrations/               # Migration verification tests
+│   ├── unit/                     # Unit tests
+│   └── integration/              # Integration tests
+├── docs/
+│   ├── standards/                # Code standards & guidelines
+│   └── migrations/               # Migration guides
 ├── Root files:
-│   ├── orchestrator.py            # Single-project, blocking run_forever()
-│   ├── intelligence_bus.py        # In-memory, per-project, NOT persistent
+│   ├── orchestrator.py           # Single-project, blocking run_forever()
 │   ├── task_manager.py
-│   ├── memory_store.py            # ✓ PERSISTENT (FAISS + JSON)
-│   ├── graph_store.py             # ✓ PERSISTENT (JSON)
+│   ├── memory_store.py           # ✓ PERSISTENT (FAISS + JSON)
+│   ├── graph_store.py            # ✓ PERSISTENT (JSON)
 │   ├── agent_bus.py
 │   ├── run_orchestrator.py
-│   └── studio_ui.py               # Main Streamlit entry point
-└── Memory files (per project):
-    ├── default_project_memory.index
-    ├── default_project_memory_texts.json
-    └── default_project_embeddings.npy
+│   └── studio_ui.py              # Main Streamlit entry point
 ```
 
-**Key observations**:
-- Only memory files and `graphs/` directory persist data
-- No `project_state/`, `outputs/`, or `bus_history/` directories yet
-- Orchestrator and IntelligenceBus have no persistence mechanism
-- UI fields, agent outputs, and tasks vanish on restart
-- `project_manager/` directory exists but integration unclear
+**Key characteristics**:
+- All project data in `project_state/<project>/` directory
+- EventBus for ephemeral real-time coordination
+- AuditLog for persistent event history
+- ProjectState for unified state management
+- OutputManager for chapter/draft file persistence
+- Registry pattern for project-scoped resources
+- Agents are stateless, created per-task via AgentFactory
 
 --------------------------------
 CORE COMPONENTS
@@ -106,10 +120,10 @@ CORE COMPONENTS
 
 I have implemented the following agents:
 
-- PlotArchitectAgent
-- WorldbuilderAgent
+- PlotArchitect
+- Worldbuilder
 - CharacterAgent
-- SceneGeneratorAgent
+- SceneGenerator
 - ContinuityAgent
 - EditorAgent
 - ProducerAgent
@@ -117,18 +131,21 @@ I have implemented the following agents:
 
 All of these agents except ProducerAgent inherit from a shared AgentBase class. Each agent takes at least:
 
+- name
 - project_name
-- intelligence_bus
+- event_bus (EventBus instance)
+- audit_log (AuditLog instance)
 - fast_model_url
 - model_mode
 
 The ProducerAgent orchestrates multi-step creative pipelines such as:
 
-- Story bible generation
-- Scene generation
+- Story bible generation (outline + world + characters)
+- Chapter generation
 - Full story workflows
+- Director mode (autonomous multi-pass revision)
 
-It runs agents sequentially and uses an IntelligenceBus to pass structured messages and critiques around.
+It runs agents sequentially and uses EventBus to pass messages and coordinate work.
 
 I also have a CreativeDirectorAgent that analyzes critiques and turns them into canon rules and guidance, which are logged into the graph and memory.
 
@@ -137,8 +154,7 @@ I also have a CreativeDirectorAgent that analyzes critiques and turns them into 
 I have a ProjectOrchestrator class that is designed for a single project at a time. It:
 
 - Is initialized with a project_name and poll_interval
-- Creates its own IntelligenceBus instance for that project:
-  - `self.intelligence_bus = IntelligenceBus(project_name)`
+- Creates its own EventBus instance for that project
 - Creates:
   - ProducerAgent
   - CreativeDirectorAgent
@@ -157,120 +173,139 @@ Right now, the orchestrator:
 
 - Handles only one project at a time
 - Must be started manually from the command line
-- Creates a fresh IntelligenceBus each time it starts
+- Creates a fresh EventBus each time it starts
 - Does not support multiple projects simultaneously
-- Does not persist its bus, tasks, or messages
+- Does not persist EventBus messages (they are ephemeral by design)
 
-3. IntelligenceBus
+3. EventBus (ephemeral coordination)
 
-I have an IntelligenceBus class that is instantiated per project by the orchestrator:
+I have an EventBus class that is instantiated per project:
 
 - It takes `project_name` in its constructor
-- It maintains in-memory structures:
-  - `messages` (chronological log)
-  - `agent_feedback`
-  - `continuity_notes`
-  - `canon_rules`
-  - `task_queue`
-  - `memory_events`
-  - `agent_messages`
-- It assigns incremental message IDs
+- It maintains an in-memory ring buffer (last 100 events)
 - It supports:
-  - `add_agent_message(sender, recipient, msg_type, payload)`
-  - `get_messages_for(agent_name, since_id=None)`
-  - `log(entry_type, content, agent=None)`
-  - `add_feedback(agent_name, text)`
+  - `publish(sender, recipient, event_type, payload)` - publish an event
+  - `subscribe(agent_name, callback)` - subscribe to events
+  - `get_recent(agent_name, limit)` - get recent events for an agent
+- Events are for real-time coordination only
 
 Important:  
-The IntelligenceBus is:
+The EventBus is:
 
 - Project-specific in memory (one per orchestrator instance)
-- Not persisted to disk
-- Not shared across processes
+- NOT persisted to disk (ephemeral by design)
 - Recreated fresh each time the orchestrator starts
+- Events are lightweight and temporary
 
-4. MemoryStore (persistent)
+4. AuditLog (persistent event history)
 
-I have a MemoryStore class that is fully persistent per project. It:
+I have an AuditLog class that provides persistent event logging:
 
-- Uses FAISS for vector search
-- Stores:
-  - `<project_name>_memory.index` (FAISS index)
-  - `<project_name>_memory_texts.json` (raw text entries)
-  - `<project_name>_embeddings.npy` (embeddings)
-- Uses an embeddings server at:
-  - `http://localhost:8001/v1/embeddings`
-  - Model: `"BAAI/bge-small-en-v1.5"`
+- Append-only JSONL format
+- Located at `audit_logs/<project_name>_audit.jsonl`
 - Supports:
-  - `add(text)` → embeds, appends, updates FAISS, saves
-  - `search(query, k=5)` → vector search with deduplication
-  - `get_all()` → returns all memory entries
-  - `delete(idx)` → deletes and rebuilds index
-  - `clear()` → clears everything
-  - `save()` → writes index, texts, embeddings to disk
+  - `append(event_type, sender, recipient, payload)` - log an event
+  - `search(event_type, limit)` - search logged events
+  - `get_recent(limit)` - get recent events
 
-So: **memory is persistent per project.**
+Important:
+- AuditLog is the permanent record of all agent actions
+- EventBus is for real-time coordination only
+- Agents should log important actions to both (via AgentBase.send_message())
 
-5. GraphStore (persistent)
+5. MemoryStore (persistent)
 
-I have a GraphStore class that is also fully persistent per project. It:
+I have a MemoryStore class that is fully persistent per project:
 
-- Stores its data in:
-  - `graphs/<project_name>_graph.json`
-- Initializes an empty graph if the file doesn't exist
-- Maintains:
-  - `entities` (character, location, faction, artifact, concept)
-  - `relationships`
-  - `events`
-  - `canon_rules`
+- Uses FAISS for vector similarity search
+- Stores memories in `project_state/<project>/memory/`
+- Files:
+  - `index.faiss` - FAISS index
+  - `texts.json` - Memory texts
+  - `embeddings.npy` - Embeddings
 - Supports:
-  - `add_entity(...)`
-  - `get_entity(...)`
-  - `get_entities_by_type(...)`
-  - `add_relationship(...)`
-  - `get_relationships_for(entity_id)`
-  - `add_event(...)`
-  - `get_events()`
-  - `add_canon_rule(...)`
-  - `get_canon_rules()`
-  - `get_raw_graph()`
-  - `replace_graph(new_graph)`
-  - Flattened getters for UI
+  - `add(text)` - add a memory
+  - `search(query, k)` - semantic search
+  - `clear()` - clear all memories
 
-So: **the graph is persistent per project.**
+6. GraphStore (persistent)
 
-6. What is NOT persistent today
+I have a GraphStore class that is fully persistent per project:
 
-Right now, the following are **not** persisted:
+- Stores knowledge graph in `project_state/<project>/graph.json`
+- Tracks:
+  - Entities (characters, locations, factions, items)
+  - Relationships between entities
+  - Events in the story world
+  - Canon rules derived from critiques
+- Supports:
+  - `add_entity()`, `add_relationship()`, `add_event()`
+  - `get_canon_rules()` - retrieve canon rules
+  - `update()` - update the graph
 
-- IntelligenceBus messages
-- Task queue
-- Agent outputs (story bible, scenes, drafts, etc.)
-- Producer pipeline results
-- UI fields (seed idea, genre, tone, themes, etc.)
-- Continuity notes (except where manually written into memory/graph)
-- Any "project_state.json" or similar
+7. ProjectState (unified state management)
 
-Only MemoryStore and GraphStore are persistent.
+I have a ProjectState class that manages all project state:
 
-7. Streamlit UI
+- Located at `project_state/<project>/state.json`
+- Contains:
+  - Project metadata (genre, tone, themes, setting)
+  - Agent outputs (outline, world, characters)
+  - Pipeline results history
+  - Continuity notes
+  - UI input fields
+- Supports:
+  - `save()` - save to disk
+  - `load(project_name)` - load from disk
+  - `add_pipeline_result()` - add pipeline result to history
+  - `add_continuity_note()` - add continuity note
+- Auto-migration from old `projects/*.json` format
 
-I have a Streamlit UI that includes:
+8. OutputManager (chapter/draft persistence)
 
-- Panels for each major agent
-- A Producer panel to run pipelines
-- An Intelligence Panel that displays internal agent messages (read-only)
-- A project selector (but project switching is limited because the orchestrator is single-project and manually started)
+I have an OutputManager class that manages output files:
 
-Important:  
-Right now:
+- Located at `project_state/<project>/outputs/`
+- Directories:
+  - `chapters/` - chapter JSON files
+  - `scenes/` - scene text files
+  - `drafts/` - full story drafts
+- Supports:
+  - `save_chapter(index, data)` - save chapter
+  - `save_draft(name, content)` - save draft
+  - `load_chapter(index)` - load chapter
+  - `list_chapters()` - list all chapters
 
-- The UI does not start or manage the orchestrator process
-- The UI does not support real-time updates during long pipelines
-- The UI only shows results after the pipeline completes
-- Feedback is effectively "batch" – I can give feedback after a run, not during
+9. AgentFactory (stateless agent creation)
 
-8. LLM setup
+I have an AgentFactory class that creates fresh agent instances:
+
+- Agents are created per-task, not stored
+- Factory methods:
+  - `create_plot_architect()`
+  - `create_worldbuilder()`
+  - `create_character_agent()`
+  - `create_scene_generator()`
+  - `create_continuity_agent()`
+  - `create_editor_agent()`
+- All agents get the same EventBus, AuditLog, and model URLs
+
+10. Registry (project-scoped resources)
+
+I have a Registry class that manages project-scoped infrastructure:
+
+- Singleton pattern: `from core.registry import REGISTRY`
+- Provides:
+  - `get_event_bus(project_name)` - get/create EventBus
+  - `get_audit_log(project_name)` - get/create AuditLog
+  - `get_memory_store(project_name)` - get/create MemoryStore
+  - `get_graph_store(project_name)` - get/create GraphStore
+  - `get_task_manager(project_name)` - get/create TaskManager
+  - `get_output_manager(project_name)` - get/create OutputManager
+- Ensures one instance per project
+- Supports `clear_project()` for cleanup
+
+11. LLM setup
 
 My current LLM setup is:
 
@@ -278,36 +313,32 @@ My current LLM setup is:
   - Model: `Qwen/Qwen2.5-3B-Instruct`
   - Served as an OpenAI-compatible endpoint at:
     - `http://localhost:8000/v1/chat/completions`
-  - Used via `fast_model_client.py` with:
-    - `FAST_MODEL_URL = "http://localhost:8000/v1/chat/completions"`
-    - `FAST_MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"`
+  - Used via `model_client.py` with automatic retry logic
 
 - **Heavy model (via Transformers, running in Windows environment):**
   - Model: `Qwen/Qwen2.5-7B-Instruct`
   - Loaded in `heavy_model.py` using:
     - `AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")`
     - `AutoModelForCausalLM.from_pretrained(..., torch_dtype=torch.float16, device_map="auto")`
-  - Used for higher-quality creative generation via:
-    - `generate_with_heavy_model(prompt: str, max_new_tokens: int = 300)`
+  - Used for higher-quality creative generation
 
 - **Embeddings server (for MemoryStore):**
   - Endpoint: `http://localhost:8001/v1/embeddings`
   - Model: `"BAAI/bge-small-en-v1.5"`
-  - This embeddings server runs inside WSL Ubuntu, just like the vLLM fast model server.
-
+  - Runs in WSL Ubuntu
 
 All models are running locally on my GPU.
 
-9. My current terminal/tab workflow
+12. My current terminal/tab workflow
 
 On Windows, I typically have four terminal tabs:
 
 - **Tab 1:** vLLM server (in WSL Ubuntu) running Qwen2.5-3B-Instruct at `http://localhost:8000/v1/chat/completions`
 - **Tab 2:** Embeddings server (in WSL Ubuntu) running the BAAI/bge-small-en-v1.5 model at `http://localhost:8001/v1/embeddings`
 - **Tab 3:** Streamlit UI running the creative studio interface
-- **Tab 4:** Orchestrator process running `ProjectOrchestrator.run_forever()` for a single project
+- **Tab 4:** Orchestrator process running `ProjectOrchestrator.run_forever()` for a single project (optional, not needed for UI-driven workflows)
 
-10. Installed dependencies (high-level summary)
+13. Installed dependencies (high-level summary)
 
 In my Windows "multimodal-assistant" environment, I have installed (among many others):
 
@@ -315,20 +346,9 @@ In my Windows "multimodal-assistant" environment, I have installed (among many o
 - streamlit
 - faiss-cpu
 - torch
-- uv
+- filelock
 - pdfplumber
 - openpyxl
-- instructor
-- jsonref
-- chromadb
-- embedchain
-- langchain
-- langgraph
-- semantic-kernel
-- fastapi
-- uvicorn
-- tiktoken
-- huggingface-hub
 - requests
 - rich
 
@@ -336,7 +356,7 @@ In WSL Ubuntu, I have a separate environment primarily for vLLM and its dependen
 
 You don't need to reason about every package individually, but you should assume I have a full modern Python AI stack available.
 
-11. Smoke test
+14. Smoke test
 
 I currently have a smoke test, but:
 
@@ -375,51 +395,76 @@ HARDWARE & ENVIRONMENT SPECS
 1. WSL: vLLM server (Qwen2.5-3B-Instruct) → `localhost:8000`
 2. WSL: Embeddings server (bge-small-en-v1.5) → `localhost:8001`
 3. Windows: Streamlit UI → `localhost:8501`
-4. Windows: Orchestrator process (blocking `run_forever()`)
+4. Windows: Orchestrator process (blocking `run_forever()`) → optional
+
+--------------------------------
+COMPLETED WORK
+--------------------------------
+
+Architecture Refactoring (COMPLETE)
+=====================================
+
+**What was completed:**
+- Migrated from IntelligenceBus to EventBus + AuditLog architecture
+- Implemented stateless agents via AgentFactory pattern
+- Created Registry for project-scoped resource management
+- Established code standards and best practices documentation
+
+**Key outcomes:**
+- Agents are now stateless (created per-task)
+- EventBus handles ephemeral real-time coordination
+- AuditLog provides persistent event history
+- Project isolation via Registry pattern
+- All migration tests passing
+
+Full Persistence Layer (COMPLETE)
+===================================
+
+**What was completed:**
+- Pipeline results history tracking in ProjectState
+- Chapter/scene/draft file persistence via OutputManager
+- Continuity notes tracking and storage
+- UI input persistence across sessions
+- Auto-save on all pipeline executions
+- Project reset functionality
+- UI panels: Pipeline History, Canon Rules, Continuity Notes
+
+**Key outcomes:**
+- All important data now persists to disk
+- Project state survives Streamlit restarts
+- Complete audit trail of all pipeline executions
+- Chapter files stored as JSON in outputs/ directory
+- Draft files stored with timestamps
+
+**File structure established:**
+```
+project_state/
+└── <project_name>/
+    ├── state.json           # Unified state
+    ├── graph.json           # Knowledge graph
+    ├── audit.jsonl          # Event log
+    ├── tasks.json           # Task queue
+    ├── memory/
+    │   ├── index.faiss
+    │   ├── texts.json
+    │   └── embeddings.npy
+    └── outputs/
+        ├── chapters/
+        ├── scenes/
+        └── drafts/
+```
 
 --------------------------------
 ROADMAP (WHAT I WANT TO BUILD NEXT)
 --------------------------------
 
-Now that you understand what exists today, here is the roadmap, in order.
-
-0. Review Architecture
-
-I want to do a sanity check of the current system architecture
-
-- Looking forward on the roadmap and seeing where changes will occur, I want to re-evaluate the code architecture
-
-Goals:
-
-- Make changes related to stability and maintainability
-- Create best practices and code guidelines that will keep AI generated code maintaining style, consistency, and quality  
-
-1. Full persistence layer
-
-I want to add a proper persistence layer so that **everything** important is saved per project, including:
-
-- Agent outputs (story bible, scenes, drafts, etc.)
-- Producer pipeline results
-- UI fields (seed idea, genre, tone, themes, notes, etc.)
-- IntelligenceBus messages (full conversation history)
-- Task queue state
-- Continuity notes
-- Canon rules (beyond what's already in GraphStore)
-- A project-level "project_state.json" or similar
-
-Goals:
-
-- Auto-save on every meaningful change (no manual "Save" button)
-- Auto-load when a project is opened
-- Project reset (clear or delete a project cleanly)
-- Project switching without corrupting state
-
-2. Multi-project orchestrator (single process, many projects)
+Multi-Project Orchestrator (NOT STARTED)
+=========================================
 
 Right now, the orchestrator is single-project. I want to evolve it into a **single multi-project orchestrator** that:
 
 - Maintains a registry of all active projects
-- Maintains a separate IntelligenceBus per project
+- Maintains a separate EventBus per project
 - Maintains a separate agent set per project
 - Maintains a separate task queue per project
 - Polls all projects in a unified event loop
@@ -434,17 +479,32 @@ The goal is:
 - Clean isolation between projects
 - Perfect fit for a real creative IDE
 
-3. Real-time workflow and feedback
+**Design questions to address:**
+- Should orchestrator use async/await or threading for multi-project support?
+- How to prevent one project's slow task from blocking others?
+- What's the task priority/scheduling strategy across projects?
+- How to handle resource limits (memory, GPU) across projects?
+
+Real-Time Workflow and Feedback (NOT STARTED)
+==============================================
 
 I want to move from "batch pipeline" behavior to **real-time, interactive workflows**, including:
 
 - Background execution of pipelines so the UI stays responsive
 - Live updates in the Intelligence Panel as agents run
-- The ability to inject human feedback into the IntelligenceBus during a run
+- The ability to inject human feedback into the EventBus during a run
 - Agents that check for new feedback/messages between steps
 - The ability to pause, resume, or step through pipelines
 
-4. Smoke test isolation and validation
+**Key features:**
+- Non-blocking pipeline execution
+- Real-time progress updates
+- Mid-pipeline feedback injection
+- Pause/resume/step controls
+- Agent-aware of new feedback between tasks
+
+Smoke Test Isolation and Validation (NOT STARTED)
+==================================================
 
 I want to upgrade the smoke test so that it:
 
@@ -454,25 +514,60 @@ I want to upgrade the smoke test so that it:
   - Memory is written
   - Graph is updated
   - Persistence files exist
-  - Bus messages are logged (once persistence is added)
+  - EventBus messages are logged to AuditLog
+  - Pipeline results are saved to ProjectState
+  - Chapter files are created in outputs/
 - Deletes the project folder afterward
 
 This will keep my real projects clean and give me confidence that the system works end-to-end.
 
-5. Higher-level autonomy and canon enforcement
+Higher-Level Autonomy and Canon Enforcement (PARTIAL)
+=======================================================
 
-Longer-term, I want:
+**What exists:**
+- CreativeDirectorAgent can analyze critiques
+- Canon rules stored in GraphStore
+- Canon rules UI panel for viewing
 
+**What's missing:**
 - Autonomous revision loops where agents critique and revise scenes/chapters
-- The CreativeDirectorAgent to enforce canon and style across the project
+- CreativeDirectorAgent actively enforcing canon during generation
 - Multi-chapter and multi-book orchestration
-- A richer knowledge graph that tracks entities, relationships, events, and canon rules over time
-- A system that can manage a persistent story universe with strong continuity
+- Richer knowledge graph tracking entities, relationships, events over time
+- Persistent story universe management with strong continuity
 
-6. Exact setup instructions for GitHub readme
-- create clear and detailed instructions so anyone can use this code and setup a completely new environment of their own
-- include all instructions need to start with a clean install of Windows 11 running a dedicated Nvidia GPU
-- List out exactly what I am running on this current system that is relevant to the setup (CPU, GPU, Memory, Disk, etc.)
+**Goals:**
+- Agents that autonomously revise based on canon violations
+- Director mode that runs multiple revision passes automatically
+- Canon rules that actively guide generation, not just stored
+- Multi-book series management with cross-book continuity
+
+GitHub Setup and Documentation (NOT STARTED)
+=============================================
+
+Create clear and detailed setup instructions so anyone can use this code and set up a completely new environment of their own.
+
+**Requirements:**
+- Start from clean Windows 11 install with Nvidia GPU
+- Complete step-by-step setup guide
+- All dependencies and configuration clearly documented
+- Hardware requirements specified
+- Model download and setup instructions
+- Troubleshooting guide
+
+**Hardware documentation:**
+- CPU: Intel Core Ultra 7 265F (20-core)
+- GPU: NVIDIA GeForce RTX 5080 (16GB VRAM)
+- RAM: 32 GB DDR5
+- Storage: 1.8 TB NVMe SSD
+
+**Software stack:**
+- Windows 11 + WSL Ubuntu
+- CUDA 12.8
+- Python 3.10 (conda)
+- vLLM server setup
+- Embeddings server setup
+- Streamlit configuration
 
 --------------------------------
 PROJECT VISION
@@ -483,7 +578,7 @@ My ultimate goal is to build a **studio-grade, autonomous creative engine** that
 - Uses multiple specialized agents to generate, critique, and refine stories
 - Maintains a persistent universe (characters, locations, factions, events, canon)
 - Supports multi-book series and long-form narrative continuity
-- Allows real-time human steering via feedback injected into the IntelligenceBus
+- Allows real-time human steering via feedback injected into the EventBus
 - Feels less like "running a script" and more like operating a creative IDE or cockpit
 
 I care about:
@@ -504,60 +599,18 @@ WHAT I WANT FROM YOU
 2. Always distinguish between: what exists | what we're designing | what's future work
 3. Provide concrete, file-level changes with clear migration steps
 4. Don't break existing workflows
+5. Follow established code standards in `docs/standards/CODE_STANDARDS.md`
 
-**Your First Task: Phase 0 - Architecture Review**
+**Architecture Patterns to Follow**:
+- Agents are stateless, created via AgentFactory
+- Use EventBus for ephemeral coordination
+- Use AuditLog for persistent event history
+- Use ProjectState for state management
+- Use Registry for project-scoped resources
+- All persistence goes through appropriate managers
 
-Before we add any new features, I need you to analyze the current architecture and provide:
-
-**Part 1: Critical Analysis** (respond to this first)
-Analyze these specific concerns:
-
-1. **IntelligenceBus Design**
-   - Is in-memory message passing optimal for multi-project orchestration?
-   - Should messages be treated as ephemeral events vs. persistent logs?
-   - How should bus instances be managed in a multi-project context?
-
-2. **Agent Lifecycle Management**
-   - Should agents be singletons per project or created per-task?
-   - What are the implications for memory usage with 10+ active projects?
-   - How should agent state be handled across task executions?
-
-3. **Persistence Strategy**
-   - Given MemoryStore and GraphStore already persist, what's the pattern?
-   - Should we use JSON, SQLite, or another format for ProjectState?
-   - How do we handle concurrent writes in a multi-project orchestrator?
-   - What's the migration path that preserves existing memory/graph data?
-
-4. **Orchestrator Architecture**
-   - Is the blocking `run_forever()` loop appropriate for multi-project?
-   - Should we move to async/await or threading?
-   - How do we prevent one project's slow task from blocking others?
-
-**Part 2: Code Guidelines & Standards** (provide after Part 1)
-Establish project-wide standards for:
-- Error handling patterns
-- Logging conventions (what level, what format)
-- Type hints policy (strict or gradual)
-- Docstring style (Google, NumPy, or reStructuredText)
-- Configuration management approach
-- Testing requirements for new code
-
-**Part 3: Refactoring Recommendations** (provide after Part 2)
-Based on the analysis, provide:
-- Specific files that need refactoring before adding new features
-- Technical debt that will bite us during multi-project implementation
-- Quick wins that improve stability now
-
-**Deliverable Format**:
-Provide a design recommendations document with:
-- Clear architectural decisions with rationale
-- Specific refactoring steps (file-by-file)
-- Risk assessment for each recommendation
-- Estimated complexity (simple/moderate/complex)
-
-**After Phase 0 is complete**, we'll move to:
-- Phase 1: Implementing full persistence layer
-- Phase 2: Multi-project orchestrator refactor
-- Phase 3: Real-time workflow and feedback
-
-**Break your response into these three parts. Start with Part 1 only.**
+**Never Do**:
+- Don't reference IntelligenceBus (it's been removed)
+- Don't create agent instances directly (use AgentFactory)
+- Don't write to `projects/*.json` (use ProjectState)
+- Don't break backward compatibility without migration guide

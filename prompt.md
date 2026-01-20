@@ -7,8 +7,8 @@ QUICK REFERENCE
 **Stack**: Python 3.x, Streamlit, FAISS, PyTorch, local Qwen LLMs (vLLM + Transformers)  
 **Environment**: Windows 11 + WSL Ubuntu, Nvidia GPU
 
-**Immediate Focus**: Multi-Project Orchestrator  
-**Next Phases**: Real-time feedback → Smoke test isolation → Autonomous revision → GitHub setup
+**Immediate Focus**: Real-time workflow & feedback (WebSocket, non-blocking UI)  
+**Next Phases**: Smoke test isolation → Autonomous revision → GitHub setup
 
 I'm building a modular, agentic AI creative studio in Python with Streamlit and a background Orchestrator. I want you to understand exactly what I've already built, what my current architecture looks like, and what's still on the roadmap.
 
@@ -151,31 +151,12 @@ I also have a CreativeDirectorAgent that analyzes critiques and turns them into 
 
 2. Orchestrator
 
-I have a ProjectOrchestrator class that is designed for a single project at a time. It:
+I have a ProjectOrchestrator 
 
-- Is initialized with a project_name and poll_interval
-- Creates its own EventBus instance for that project
-- Creates:
-  - ProducerAgent
-  - CreativeDirectorAgent
-  - TaskManager
-  - GraphStore
-  - MemoryStore
-- Runs a blocking loop via `run_forever()` that:
-  - Ingests continuity messages into tasks
-  - Executes tasks (e.g., SCENE_REVISION, SCENE_CRITIQUE_ANALYSIS)
-  - Uses CreativeDirectorAgent to derive canon rules and guidance from critiques
-  - Logs canon rules into GraphStore and memory
-  - Updates task statuses
-
-Important:  
-Right now, the orchestrator:
-
-- Handles only one project at a time
-- Must be started manually from the command line
-- Creates a fresh EventBus each time it starts
-- Does not support multiple projects simultaneously
-- Does not persist EventBus messages (they are ephemeral by design)
+- One orchestrator process
+- Many projects
+- No need to spawn/kill orchestrators per project
+- Clean isolation between projects
 
 3. EventBus (ephemeral coordination)
 
@@ -398,92 +379,8 @@ HARDWARE & ENVIRONMENT SPECS
 4. Windows: Orchestrator process (blocking `run_forever()`) → optional
 
 --------------------------------
-COMPLETED WORK
+ROADMAP 
 --------------------------------
-
-Architecture Refactoring (COMPLETE)
-=====================================
-
-**What was completed:**
-- Migrated from IntelligenceBus to EventBus + AuditLog architecture
-- Implemented stateless agents via AgentFactory pattern
-- Created Registry for project-scoped resource management
-- Established code standards and best practices documentation
-
-**Key outcomes:**
-- Agents are now stateless (created per-task)
-- EventBus handles ephemeral real-time coordination
-- AuditLog provides persistent event history
-- Project isolation via Registry pattern
-- All migration tests passing
-
-Full Persistence Layer (COMPLETE)
-===================================
-
-**What was completed:**
-- Pipeline results history tracking in ProjectState
-- Chapter/scene/draft file persistence via OutputManager
-- Continuity notes tracking and storage
-- UI input persistence across sessions
-- Auto-save on all pipeline executions
-- Project reset functionality
-- UI panels: Pipeline History, Canon Rules, Continuity Notes
-
-**Key outcomes:**
-- All important data now persists to disk
-- Project state survives Streamlit restarts
-- Complete audit trail of all pipeline executions
-- Chapter files stored as JSON in outputs/ directory
-- Draft files stored with timestamps
-
-**File structure established:**
-```
-project_state/
-└── <project_name>/
-    ├── state.json           # Unified state
-    ├── graph.json           # Knowledge graph
-    ├── audit.jsonl          # Event log
-    ├── tasks.json           # Task queue
-    ├── memory/
-    │   ├── index.faiss
-    │   ├── texts.json
-    │   └── embeddings.npy
-    └── outputs/
-        ├── chapters/
-        ├── scenes/
-        └── drafts/
-```
-
---------------------------------
-ROADMAP (WHAT I WANT TO BUILD NEXT)
---------------------------------
-
-Multi-Project Orchestrator (NOT STARTED)
-=========================================
-
-Right now, the orchestrator is single-project. I want to evolve it into a **single multi-project orchestrator** that:
-
-- Maintains a registry of all active projects
-- Maintains a separate EventBus per project
-- Maintains a separate agent set per project
-- Maintains a separate task queue per project
-- Polls all projects in a unified event loop
-- Routes tasks and messages based on project_name
-- Integrates cleanly with the persistence layer
-
-The goal is:
-
-- One orchestrator process
-- Many projects
-- No need to spawn/kill orchestrators per project
-- Clean isolation between projects
-- Perfect fit for a real creative IDE
-
-**Design questions to address:**
-- Should orchestrator use async/await or threading for multi-project support?
-- How to prevent one project's slow task from blocking others?
-- What's the task priority/scheduling strategy across projects?
-- How to handle resource limits (memory, GPU) across projects?
 
 Real-Time Workflow and Feedback (NOT STARTED)
 ==============================================

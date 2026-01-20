@@ -600,6 +600,8 @@ WHAT I WANT FROM YOU
 3. Provide concrete, file-level changes with clear migration steps
 4. Don't break existing workflows
 5. Follow established code standards in `docs/standards/CODE_STANDARDS.md`
+6. Follow all standards in docs/standards/*
+7. Offer change suggestions to standards if they are incorrect, contradictory, or no longer serve the project
 
 **Architecture Patterns to Follow**:
 - Agents are stateless, created via AgentFactory

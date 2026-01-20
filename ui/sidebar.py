@@ -8,10 +8,14 @@ from project_manager.registry import (
 )
 from project_manager.loader import load_project_state, save_project_state
 from project_manager.state import load_state_into_session, extract_state_from_session
+from ui.initialization import ensure_project_exists
 
 
 def render_sidebar():
     st.sidebar.header("Project Management")
+
+    # Ensure default_project exists before listing
+    ensure_project_exists("default_project")
 
     existing = get_all_projects()
     if "default_project" not in existing:
@@ -47,7 +51,7 @@ def render_sidebar():
             st.session_state["show_create"] = not st.session_state["show_create"]
 
     with col_dup:
-        if st.button("⧉", help="Duplicate Project"):
+        if st.button("⎘", help="Duplicate Project"):
             st.session_state["show_duplicate"] = not st.session_state["show_duplicate"]
 
     st.sidebar.markdown("---")
@@ -113,7 +117,7 @@ def render_sidebar():
     st.sidebar.markdown("---")
 
     # Danger Zone
-    st.sidebar.markdown("### 🔥 Danger Zone")
+    st.sidebar.markdown("### 🗑️ Danger Zone")
     
     if st.sidebar.button("Reset Current Project"):
         from project_manager.loader import reset_project

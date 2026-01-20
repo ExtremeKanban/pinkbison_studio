@@ -430,3 +430,14 @@ Do not include any other text, just the JSON.
         """Save pipeline result to project state"""
         state = ProjectState.load(self.project_name)
         state.add_pipeline_result(pipeline_type, result)
+
+    def get_continuity_critiques(self):
+        """
+        Get CRITIQUE messages from continuity agent.
+        
+        This is used by the orchestrator to ingest critiques into tasks.
+        Returns empty list if not implemented.
+        """
+        # For now, return empty list
+        # In the future, this would query EventBus for CRITIQUE messages
+        return []

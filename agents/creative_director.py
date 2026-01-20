@@ -4,7 +4,7 @@ Updated to use ModelClient for reliable model calls.
 """
 
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from agents.base_agent import AgentBase
 from models.model_client import ModelClient
 from models.exceptions import ModelError
@@ -206,3 +206,165 @@ Provide thoughtful, actionable creative guidance that:
         )
 
         return guidance
+
+    def analyze_scene_critique(self, issues: str, original_text: str) -> Dict[str, Any]:
+        """
+        Analyze a scene critique and extract canon rules.
+        
+        This is used by the orchestrator to process continuity critiques.
+        
+        Args:
+            issues: Continuity issues found
+            original_text: Original scene text
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        try:
+            # Safely convert inputs to strings
+            issues_str = str(issues) if issues is not None else ""
+            original_text_str = str(original_text) if original_text is not None else ""
+            
+            # Build analysis prompt
+            prompt = f"""
+Analyze the following continuity critique and extract canon rules.
+
+Continuity Issues:
+{issues_str}
+
+Original Scene:
+{original_text_str[:1000]}
+
+Provide:
+1. Core problems identified
+2. Proposed canon rules to prevent similar issues
+3. Guidance for agents
+
+Return as JSON with keys: core_problems, proposed_canon_rules, guidance
+"""
+            
+            # Use ModelClient
+            from models.model_client import ModelClient
+            client = ModelClient(model_url=self.fast_model_url)
+            
+            response = client.complete_simple(prompt=prompt, temperature=0.7)
+            
+            # Ensure response is string
+            response_str = str(response) if response else "{}"
+            
+            # Try to parse JSON
+            import re
+            
+            # Extract JSON from response
+            try:
+                # Remove markdown code blocks
+                clean = re.sub(r'```(?:json)?\s*', '', response_str)
+                clean = re.sub(r'\s*```', '', clean).strip()
+                
+                if clean:
+                    result = json.loads(clean)
+                else:
+                    result = {}
+            except (json.JSONDecodeError, TypeError):
+                # Fallback structure
+                result = {
+                    "core_problems": ["Could not parse LLM response"],
+                    "proposed_canon_rules": ["Review critique manually"],
+                    "guidance": response_str[:500] if response_str else "No guidance provided",
+                }
+            
+            # Ensure all required fields exist
+            return {
+                "core_problems": result.get("core_problems", []),
+                "proposed_canon_rules": result.get("proposed_canon_rules", []),
+                "guidance": result.get("guidance", ""),
+            }
+            
+        except Exception as e:
+            # Comprehensive error handling
+            self.audit_log.append(
+                event_type="agent_error",
+                sender=self.name,
+                recipient="system",
+                payload={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "method": "analyze_scene_critique",
+                },
+            )
+            
+            # Fallback result
+            return {
+                "core_problems": [f"Analysis error: {type(e).__name__}"],
+                "proposed_canon_rules": [],
+                "guidance": f"Error during analysis: {str(e)[:200]}",
+            }
+    
+    def log_canon_rules(self, rules: List[str]) -> None:
+        """
+        Log canon rules to graph store.
+        
+        Args:
+            rules: List of canon rule strings to log
+        """
+        if not rules:
+            return
+        
+        # Filter out non-strings
+        valid_rules = [str(r).strip() for r in rules if r and str(r).strip()]
+        
+        if not valid_rules:
+            return
+        
+        # Get graph store
+        from graph_store import GraphStore
+        graph = GraphStore(self.project_name)
+        
+        for rule in valid_rules:
+            # Add to graph
+            import uuid
+            rule_id = f"canon_rule_{uuid.uuid4().hex[:8]}"
+            
+            graph.add_canon_rule(
+                rule_id=rule_id,
+                rule=rule,
+                scope=["general"],
+                notes="Generated from continuity critique",
+            )
+        
+        # Log action
+        self.audit_log.append(
+            event_type="agent_completion",
+            sender=self.name,
+            recipient="system",
+            payload={"action": "canon_rules_logged", "count": len(valid_rules)},
+        )
+    
+    def send_guidance_message(self, guidance: str) -> None:
+        """
+        Send guidance to agents via EventBus.
+        
+        Args:
+            guidance: Guidance message to broadcast
+        """
+        if not guidance:
+            return
+        
+        guidance_str = str(guidance).strip()
+        if not guidance_str:
+            return
+        
+        self.event_bus.publish(
+            sender=self.name,
+            recipient="ALL",
+            event_type="creative_guidance",
+            payload={"guidance": guidance_str},
+        )
+        
+        # Also log to audit
+        self.audit_log.append(
+            event_type="agent_message",
+            sender=self.name,
+            recipient="ALL",
+            payload={"type": "creative_guidance", "guidance": guidance_str[:200]},
+        )

@@ -22,11 +22,14 @@ from ui.memory_browser_ui import render_memory_browser
 from ui.pipeline_history_ui import render_pipeline_history
 from ui.canon_rules_ui import render_canon_rules
 from ui.continuity_notes_ui import render_continuity_notes
+from ui.multi_orchestrator_panel import render_multi_orchestrator_panel
 
-# Initialize session state for project data
-initialize_session_state()
+from ui.initialization import initialize_ui
 
-# Ensure current_project always exists
+# Initialize UI with proper project state
+initialize_ui()
+
+# Ensure current_project always exists (backup)
 if "current_project" not in st.session_state:
     st.session_state["current_project"] = "default_project"
 
@@ -55,3 +58,4 @@ render_memory_browser(project_name)
 render_pipeline_history(project_name)
 render_canon_rules(project_name)
 render_continuity_notes(project_name)
+render_multi_orchestrator_panel(project_name)

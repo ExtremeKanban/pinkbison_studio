@@ -50,3 +50,23 @@ build/
 
 # File locks
 *.lock
+ui/combined_python_ui.txt
+tests/unit/models/combined_python_models.txt
+tests/unit/core/combined_python_core.txt
+tests/unit/combined_python_unit.txt
+tests/unit/config/combined_python_config.txt
+tests/migrations/combined_python_migrations.txt
+
+
+combined_python_pinkbison_studio.txt
+agents/combined_python_agents.txt
+config/combined_python_config.txt
+core/combined_python_core.txt
+models/combined_python_models.txt
+scripts/combined_python_scripts.txt
+project_manager/combined_python_project_manager.txt
+tests/combined_python_tests.txt
+tests/migrations/combined_python_migrations.txt
+tests/unit/combined_python_unit.txt
+
+.gitignore

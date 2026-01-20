@@ -21,16 +21,20 @@ CURRENT ARCHITECTURE (WHAT EXISTS TODAY)
 --------------------------------
 CURRENT FILE STRUCTURE
 --------------------------------
-
 ```
 project_root/
+├── config/                        # Centralized configuration
+│   ├── __init__.py
+│   └── settings.py               # MODEL_CONFIG, STORAGE_CONFIG
 ├── core/                          # Infrastructure components
+│   ├── __init__.py
 │   ├── event_bus.py              # Ephemeral message passing
 │   ├── audit_log.py              # Persistent event log
 │   ├── project_state.py          # Unified state management
 │   ├── agent_factory.py          # Stateless agent creation
 │   ├── output_manager.py         # Chapter/draft file management
-│   └── registry.py               # Project-scoped resource manager
+│   ├── registry.py               # Project-scoped resource manager
+│   └── storage_paths.py          # Centralized path management
 ├── agents/
 │   ├── base_agent.py             # Base class for all agents
 │   ├── plot_architect.py
@@ -47,6 +51,8 @@ project_root/
 │   ├── fast_model_client.py     # vLLM client (Qwen2.5-3B)
 │   └── heavy_model.py            # Transformers (Qwen2.5-7B)
 ├── ui/
+│   ├── __init__.py
+│   ├── common.py                 # Shared UI utilities
 │   ├── character_ui.py
 │   ├── general_playground.py
 │   ├── intelligence_panel.py     # EventBus + AuditLog viewer
@@ -83,24 +89,45 @@ project_root/
 │           ├── scenes/
 │           └── drafts/
 │               └── full_story_TIMESTAMP.txt
-├── audit_logs/                   # Centralized audit logs
-│   └── <project_name>_audit.jsonl
 ├── tests/
 │   ├── smoke_test.py             # End-to-end test (needs isolation)
+│   ├── utils.py                  # Test utilities
+│   ├── test_data/
+│   │   └── sample_inputs.json
 │   ├── migrations/               # Migration verification tests
 │   ├── unit/                     # Unit tests
+│   │   └── config/
+│   │       ├── __init__.py
+│   │       └── test_settings.py
 │   └── integration/              # Integration tests
+├── scripts/
+│   └── cleanup_legacy_files.py  # Legacy file cleanup utility
 ├── docs/
-│   ├── standards/                # Code standards & guidelines
-│   └── migrations/               # Migration guides
+│   ├── standards/
+│   │   ├── CODE_STANDARDS.md
+│   │   ├── ERROR_HANDLING.md
+│   │   └── TESTING_REQUIREMENTS.md
+│   ├── migrations/
+│   │   ├── phase_0_eventbus_migration.md
+│   │   ├── phase1_implementation_plan.md
+│   │   └── storage_consolidation.md
+│   ├── setup/
+│   │   └── PACKAGE_INVENTORY.md
+│   └── multi_orchestrator_guide.md
 ├── Root files:
-│   ├── orchestrator.py           # Single-project, blocking run_forever()
-│   ├── task_manager.py
+│   ├── orchestrator.py           # Single-project orchestrator (DEPRECATED)
+│   ├── multi_orchestrator.py     # Multi-project orchestrator
+│   ├── run_orchestrator.py       # Orchestrator CLI (DEPRECATED)
+│   ├── run_multi_orchestrator.py # Multi-orchestrator CLI 
+│   ├── task_manager.py           # Task queue management
 │   ├── memory_store.py           # ✓ PERSISTENT (FAISS + JSON)
 │   ├── graph_store.py            # ✓ PERSISTENT (JSON)
 │   ├── agent_bus.py
-│   ├── run_orchestrator.py
-│   └── studio_ui.py              # Main Streamlit entry point
+│   ├── studio_ui.py              # Main Streamlit entry point
+│   ├── copy_py_to_txt.ps1        # PowerShell utility script
+│   ├── pytest.ini                # Pytest configuration
+│   ├── requirements.txt
+│   └── .gitignore
 ```
 
 **Key characteristics**:
@@ -111,6 +138,11 @@ project_root/
 - OutputManager for chapter/draft file persistence
 - Registry pattern for project-scoped resources
 - Agents are stateless, created per-task via AgentFactory
+- Centralized configuration in `config/settings.py`
+- Standardized UI utilities in `ui/common.py`
+- Comprehensive testing structure with unit/integration tests
+- Migration documentation and cleanup scripts
+
 
 --------------------------------
 CORE COMPONENTS

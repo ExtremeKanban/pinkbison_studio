@@ -47,8 +47,7 @@ st.header("Creative Pipeline")
 st.text_area(
     "Story Idea",
     key="producer_seed_idea",
-    height=120,
-    placeholder="A retired astronaut discovers an alien signal that only she can decode..."
+    height=120
 )
 
 # Pipeline controls with real-time updates

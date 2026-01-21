@@ -8,7 +8,15 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from core.registry import REGISTRY
-from ui.websocket_client import initialize_websocket_client, StreamlitWebSocketClient
+
+# Try to import WebSocket client, but don't fail if unavailable
+try:
+    from ui.websocket_client import initialize_websocket_client, StreamlitWebSocketClient
+    WEBSOCKET_AVAILABLE = True
+except ImportError:
+    WEBSOCKET_AVAILABLE = False
+    initialize_websocket_client = None
+    StreamlitWebSocketClient = None
 
 
 def render_live_event_panel(project_name: str):
@@ -16,7 +24,12 @@ def render_live_event_panel(project_name: str):
     Render live event stream with WebSocket real-time updates.
     """
     # Initialize WebSocket client
-    client = initialize_websocket_client(project_name)
+    client = None
+    if WEBSOCKET_AVAILABLE:
+        try:
+            client = initialize_websocket_client(project_name)
+        except Exception as e:
+            print(f"[LiveEvents] WebSocket client init failed: {e}")
     
     with st.expander("📡 Live Event Stream", expanded=True):
         
@@ -53,7 +66,7 @@ def render_live_event_panel(project_name: str):
         
         with col_clear:
             if st.button("🗑️ Clear", key=f"clear_events_{project_name}"):
-                if client:
+                if client and WEBSOCKET_AVAILABLE and StreamlitWebSocketClient:
                     StreamlitWebSocketClient.clear_messages(project_name)
                 st.rerun()
         
@@ -77,8 +90,13 @@ def display_combined_events(project_name: str, limit: int):
     event_bus = REGISTRY.get_event_bus(project_name)
     bus_events = list(event_bus.buffer)[-limit:]
     
-    # Get WebSocket events
-    ws_events = StreamlitWebSocketClient.get_latest_messages(project_name, limit)
+    # Get WebSocket events (only if available)
+    ws_events = []
+    if WEBSOCKET_AVAILABLE and StreamlitWebSocketClient:
+        try:
+            ws_events = StreamlitWebSocketClient.get_latest_messages(project_name, limit)
+        except Exception as e:
+            print(f"[LiveEvents] Failed to get WebSocket messages: {e}")
     
     # Combine and sort by timestamp
     all_events = []
@@ -199,13 +217,13 @@ def render_event_card(event: Dict[str, Any], idx: int, project_name: str):
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+
 def render_pipeline_status_card(project_name: str):
     """
     Render a status card for the current pipeline.
     """
     try:
         # Get pipeline controller
-        from core.registry import REGISTRY
         pipeline_controller = REGISTRY.get_pipeline_controller(project_name)
         status = pipeline_controller.get_status()
         

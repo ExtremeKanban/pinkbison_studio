@@ -22,14 +22,10 @@ project_name = render_sidebar()
 
 # Initialize WebSocket
 try:
-    from ui.websocket_client import initialize_websocket_client
-    ws_client = initialize_websocket_client(project_name)
-    if ws_client and ws_client.running:
-        if "websocket_toast_shown" not in st.session_state:
-            st.toast("✅ WebSocket connected", icon="🔌")
-            st.session_state.websocket_toast_shown = True
+    from core.websocket_manager import WEBSOCKET_MANAGER
+    WEBSOCKET_MANAGER.start_server()
 except Exception as e:
-    print(f"[WebSocket] Initialization failed: {e}")
+    print(f"[WebSocket] Server start failed: {e}")
 
 # ============================================
 # HEADER
@@ -72,7 +68,7 @@ st.text_area(
 from ui.pipeline_controls_ui import render_pipeline_controls_inline
 render_pipeline_controls_inline(project_name)
 
-# Auto-refresh when pipeline completes
+# Check pipeline status for error display and auto-refresh
 from core.registry import REGISTRY
 pc = REGISTRY.get_pipeline_controller(project_name)
 status = pc.get_status()
@@ -85,25 +81,22 @@ if status["status"] == "error":
 
 # Auto-rerun when pipeline completes
 if status["status"] == "completed":
-    if f"pipeline_completed_{project_name}" not in st.session_state:
-        st.session_state[f"pipeline_completed_{project_name}"] = True
+    if f"show_completed_{project_name}" not in st.session_state:
+        st.session_state[f"show_completed_{project_name}"] = True
         st.rerun()
-elif status["status"] != "completed":
-    st.session_state.pop(f"pipeline_completed_{project_name}", None)
-
+    st.success("✅ Pipeline completed!")
+elif status["status"] == "running":
+    # Clear the completed flag while running
+    st.session_state.pop(f"show_completed_{project_name}", None)
+    # Auto-refresh every 2 seconds while running
+    import time
+    time.sleep(2)
+    st.rerun()
 st.markdown("---")
 
-# Show latest output immediately
-from ui.pipeline_output_display import render_pipeline_output
-render_pipeline_output(project_name)
-
-# DEBUG: Check if results are actually saved
-from core.project_state import ProjectState
-state = ProjectState.load(project_name)
-st.write(f"DEBUG: Found {len(state.pipeline_results)} pipeline results in state")
-if state.pipeline_results:
-    latest = state.pipeline_results[-1]
-    st.write(f"DEBUG: Latest result type: {latest.pipeline_type}, has {len(latest.result)} keys")
+# Real-time output display
+from ui.components.realtime_output import render_realtime_output
+render_realtime_output(project_name)
 
 st.markdown("---")
 

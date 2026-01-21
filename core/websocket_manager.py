@@ -217,6 +217,16 @@ class WebSocketManager:
             progress
         )
 
+    def broadcast_eventbus_message(self, project_name: str, event: dict):
+        """Broadcast EventBus message to subscribers"""
+        asyncio.run_coroutine_threadsafe(
+            self._broadcast_async(
+                project_name,
+                "eventbus_message",
+                event
+            ),
+            self.loop
+        )
 
 # Global instance
 WEBSOCKET_MANAGER = WebSocketManager.get_instance()

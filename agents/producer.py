@@ -174,7 +174,19 @@ class ProducerAgent:
                 setting=setting,
                 auto_memory=auto_memory
             )
-            
+            # PUBLISH PARTIAL RESULT
+            self.event_bus.publish(
+                sender="producer",
+                recipient="ALL",
+                event_type="partial_result",
+                payload={
+                    "pipeline": "story_bible",
+                    "step": "outline",
+                    "content": outline,
+                    "timestamp": time.time()
+                }
+            )
+
             # 2) World
             pipeline_controller.update_progress(
                 current_step="world_bible",
@@ -197,7 +209,19 @@ class ProducerAgent:
                 setting=setting,
                 auto_memory=auto_memory
             )
-            
+            # PUBLISH PARTIAL RESULT
+            self.event_bus.publish(
+                sender="producer",
+                recipient="ALL",
+                event_type="partial_result",
+                payload={
+                    "pipeline": "story_bible",
+                    "step": "world",
+                    "content": world_doc,
+                    "timestamp": time.time()
+                }
+            )
+
             # 3) Characters
             pipeline_controller.update_progress(
                 current_step="character_bible",
@@ -216,6 +240,18 @@ class ProducerAgent:
                 outline=outline,
                 world_notes=world_doc,
                 auto_memory=auto_memory
+            )
+            # PUBLISH PARTIAL RESULT
+            self.event_bus.publish(
+                sender="producer",
+                recipient="ALL",
+                event_type="partial_result",
+                payload={
+                    "pipeline": "story_bible",
+                    "step": "characters",
+                    "content": character_doc,
+                    "timestamp": time.time()
+                }
             )
             
             result = {

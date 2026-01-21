@@ -139,35 +139,54 @@ class StreamlitWebSocketClient:
             st.session_state[messages_key] = []
 
 
-def initialize_websocket_client(project_name: str):
-    """
-    Initialize WebSocket client for a project.
-    Call this at the start of your UI.
-    """
-    # Start WebSocket server if not running
-    try:
-        from core.websocket_manager import WEBSOCKET_MANAGER
-        WEBSOCKET_MANAGER.start_server()
-    except Exception as e:
-        print(f"[WebSocket] Could not start server: {e}")
-        return None
-    
-    # Create or get existing client
-    client_key = f"ws_client_{project_name}"
-    
-    if client_key not in st.session_state:
-        client = StreamlitWebSocketClient(project_name)
-        st.session_state[client_key] = client
+    def initialize_websocket_client(project_name: str):
+        """
+        Initialize WebSocket client for a project.
+        Call this at the start of your UI.
+        """
+        # Start WebSocket server if not running
+        try:
+            from core.websocket_manager import WEBSOCKET_MANAGER
+            WEBSOCKET_MANAGER.start_server()
+        except Exception as e:
+            print(f"[WebSocket] Could not start server: {e}")
+            return None
         
-        # Start the client
-        client.start()
+        # Create or get existing client
+        client_key = f"ws_client_{project_name}"
         
-        # Register default callbacks
-        def handle_eventbus_message(data):
-            print(f"[WebSocket] EventBus message: {data.get('type')}")
+        if client_key not in st.session_state:
+            client = StreamlitWebSocketClient(project_name)
+            st.session_state[client_key] = client
+            
+            # Start the client
+            client.start()
+            
+            # Register default callbacks
+            def handle_eventbus_message(data):
+                print(f"[WebSocket] EventBus message: {data.get('type')}")
+            
+            client.register_callback('eventbus_message', handle_eventbus_message)
+            
+            return client
         
-        client.register_callback('eventbus_message', handle_eventbus_message)
+        return st.session_state[client_key]
+
+    def _handle_message(self, message: dict):
+        """Handle incoming WebSocket message"""
+        msg_type = message.get("type")
         
-        return client
-    
-    return st.session_state[client_key]
+        if msg_type == "eventbus_message":
+            event = message.get("data", {})
+            event_type = event.get("type")
+            
+            # Handle partial results
+            if event_type == "partial_result":
+                payload = event.get("payload", {})
+                step = payload.get("step")
+                content = payload.get("content")
+                
+                if step and content:
+                    # Update partial results in session state
+                    from ui.components.realtime_output import update_partial_result
+                    update_partial_result(self.project_name, step, content)

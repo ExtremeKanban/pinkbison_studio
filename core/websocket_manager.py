@@ -188,6 +188,35 @@ class WebSocketManager:
             self.running = False
             print("[WebSocket] Server stopped")
 
+    def broadcast_pipeline_status(self, project_name: str, status: dict):
+        """
+        Broadcast pipeline status update to all subscribers.
+        
+        Args:
+            project_name: Project name
+            status: Status dictionary from pipeline_controller.get_status()
+        """
+        self.send_to_project(
+            project_name,
+            'pipeline_status',
+            status
+        )
+        print(f"[WebSocket] Broadcast status: {status['status']}")
+
+    def broadcast_pipeline_progress(self, project_name: str, progress: dict):
+        """
+        Broadcast progress update to all subscribers.
+        
+        Args:
+            project_name: Project name
+            progress: Progress dictionary
+        """
+        self.send_to_project(
+            project_name,
+            'pipeline_progress',
+            progress
+        )
+
 
 # Global instance
 WEBSOCKET_MANAGER = WebSocketManager.get_instance()

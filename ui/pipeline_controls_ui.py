@@ -11,72 +11,66 @@ from ui.common import get_producer
 
 def render_pipeline_controls(project_name: str):
     """
-    Render pipeline control buttons and status.
+    Render pipeline controls with REAL-TIME updates via WebSocket.
+    No page refresh needed!
     """
-    # Initialize session state counter if not exists (more stable than timestamp)
+    # Real-time status component
+    try:
+        from ui.components.realtime_status import realtime_status
+        
+        # This updates automatically via WebSocket - no st.rerun() needed!
+        realtime_status(project_name=project_name)
+        
+    except ImportError as e:
+        # Fallback to basic status if component not available
+        st.warning("Real-time component not available. Using basic status.")
+        pipeline_controller = REGISTRY.get_pipeline_controller(project_name)
+        status = pipeline_controller.get_status()
+        st.markdown(f"**Status:** `{status['status']}`")
+    
+    # Initialize session state for stable keys
     if f"pipeline_render_count_{project_name}" not in st.session_state:
         st.session_state[f"pipeline_render_count_{project_name}"] = 0
     
-    # Use render count instead of timestamp for keys
     render_id = st.session_state[f"pipeline_render_count_{project_name}"]
+    
+    # Get pipeline controller
+    pipeline_controller = REGISTRY.get_pipeline_controller(project_name)
+    status = pipeline_controller.get_status()
     
     with st.expander("🎮 Pipeline Controls", expanded=True):
         
-        # Get pipeline controller
-        pipeline_controller = REGISTRY.get_pipeline_controller(project_name)
-        status = pipeline_controller.get_status()
-        
-        # Current status display
-        st.markdown(f"**Current Status:** `{status['status']}`")
-        
-        # Show error message if status is error
-        if status['status'] == 'error' and status.get('current_task'):
-            st.error(f"❌ {status['current_task']}")
-        
-        if status["progress"]["percent_complete"] > 0:
-            st.progress(
-                status["progress"]["percent_complete"] / 100,
-                text=status["progress"]["current_step"]
-            )
-        
-        # Control buttons in columns (only pause/resume/stop - start is via Quick Start below)
+        # Control buttons
         col1, col2, col3 = st.columns(3)
         
         with col1:
             if st.button("⏸️ Pause",
                         disabled=not status["is_running"],
                         use_container_width=True,
-                        key=f"pipeline_pause_{project_name}_{render_id}"):
+                        key=f"pause_{project_name}_{render_id}"):
                 if pipeline_controller.pause():
-                    st.success("Pipeline paused")
+                    st.success("Paused")
                     st.rerun()
-                else:
-                    st.error("Could not pause pipeline")
         
         with col2:
             if st.button("⏯️ Resume",
                         disabled=not status["is_paused"],
                         use_container_width=True,
-                        key=f"pipeline_resume_{project_name}_{render_id}"):
+                        key=f"resume_{project_name}_{render_id}"):
                 if pipeline_controller.resume():
-                    st.success("Pipeline resumed")
+                    st.success("Resumed")
                     st.rerun()
-                else:
-                    st.error("Could not resume pipeline")
         
         with col3:
             if st.button("⏹️ Stop",
                         disabled=not (status["is_running"] or status["is_paused"]),
                         use_container_width=True,
-                        type="secondary",
-                        key=f"pipeline_stop_{project_name}_{render_id}"):
+                        key=f"stop_{project_name}_{render_id}"):
                 if pipeline_controller.stop():
-                    st.success("Pipeline stopped")
+                    st.success("Stopped")
                     st.rerun()
-                else:
-                    st.error("Could not stop pipeline")
         
-        # Pipeline type selection (for start)
+        # Pipeline configuration (only when idle)
         if not (status["is_running"] or status["is_paused"]):
             st.markdown("---")
             st.markdown("### Start New Pipeline")
@@ -90,10 +84,10 @@ def render_pipeline_controls(project_name: str):
                     "full_story": "📚 Full Story",
                     "director": "🎬 Director Mode"
                 }[x],
-                key=f"pipeline_type_select_{project_name}_{render_id}"
+                key=f"pipeline_type_{project_name}_{render_id}"
             )
             
-            # Show pipeline-specific options
+            # Chapter-specific options
             chapter_index = None
             if pipeline_type == "chapter":
                 chapter_index = st.number_input(
@@ -101,18 +95,16 @@ def render_pipeline_controls(project_name: str):
                     min_value=0,
                     max_value=99,
                     value=0,
-                    key=f"pipeline_chapter_index_{project_name}_{render_id}"
+                    key=f"chapter_idx_{project_name}_{render_id}"
                 )
             
-            # Start pipeline button
-            if st.button("▶️ Start Pipeline", 
-                        type="secondary",  # Less prominent than primary
+            # Start button
+            if st.button("▶️ Start Pipeline",
+                        type="secondary",
                         use_container_width=True,
-                        key=f"pipeline_quick_start_{project_name}_{render_id}"):
-                # Increment counter on click
+                        key=f"start_{project_name}_{render_id}"):
                 st.session_state[f"pipeline_render_count_{project_name}"] += 1
                 _start_pipeline_ui(project_name, str(render_id), pipeline_type, chapter_index)
-
 
 def _start_pipeline_ui(
     project_name: str, 

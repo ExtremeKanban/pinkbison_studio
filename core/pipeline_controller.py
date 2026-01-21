@@ -97,8 +97,11 @@ class PipelineController:
             return True
     
     def _run_pipeline(self, pipeline_func: Callable, kwargs: Dict[str, Any]):
-        """Internal method to run pipeline with pause/resume support."""
+        """Internal method to run pipeline with status broadcasts."""
         try:
+            # Broadcast start
+            self._broadcast_status()
+            
             # Call the pipeline function
             result = pipeline_func(
                 controller=self,
@@ -111,18 +114,32 @@ class PipelineController:
                 self.status = PipelineStatus.COMPLETED
                 self.progress.percent_complete = 100.0
                 self.current_task = None
+                self._broadcast_status()
         
         except Exception as e:
             # Pipeline failed
             with self.lock:
                 self.status = PipelineStatus.ERROR
                 self.current_task = f"Error: {str(e)}"
+                self._broadcast_status()
         
         finally:
             # Notify status change
             if self.on_status_change:
                 self.on_status_change(self.get_status())
     
+    def _broadcast_status(self):
+        """Broadcast current status via WebSocket."""
+        try:
+            from core.websocket_manager import WEBSOCKET_MANAGER
+            if WEBSOCKET_MANAGER.running:
+                WEBSOCKET_MANAGER.broadcast_pipeline_status(
+                    self.project_name,
+                    self.get_status()
+                )
+        except Exception as e:
+            print(f"[PipelineController] Status broadcast error: {e}")
+
     def pause(self) -> bool:
         """Pause the running pipeline."""
         with self.lock:
@@ -167,7 +184,7 @@ class PipelineController:
         step_description: str = ""
     ) -> None:
         """
-        Update pipeline progress.
+        Update pipeline progress with WebSocket broadcast.
         
         Args:
             step_number: Current step number (1-indexed)
@@ -186,6 +203,23 @@ class PipelineController:
                 self.progress.percent_complete = (
                     (step_number / self.progress.total_steps) * 100
                 )
+            
+            # Broadcast progress via WebSocket
+            try:
+                from core.websocket_manager import WEBSOCKET_MANAGER
+                if WEBSOCKET_MANAGER.running:
+                    WEBSOCKET_MANAGER.broadcast_pipeline_progress(
+                        self.project_name,
+                        {
+                            'step_number': step_number,
+                            'total_steps': self.progress.total_steps,
+                            'current_step': current_step,
+                            'step_description': step_description,
+                            'percent_complete': self.progress.percent_complete
+                        }
+                    )
+            except Exception as e:
+                print(f"[PipelineController] WebSocket broadcast error: {e}")
             
             # Check for pause
             if self.pause_event.is_set():

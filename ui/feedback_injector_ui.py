@@ -54,7 +54,7 @@ def render_feedback_injector(project_name: str):
                     "creative_director": "🎨 Creative Director",
                     "producer": "🎬 Producer"
                 }[x],
-                key="feedback_target"
+                key=f"feedback_target_{project_name}"
             )
         
         with col2:
@@ -62,7 +62,7 @@ def render_feedback_injector(project_name: str):
                 "Feedback Type",
                 options=list(FeedbackType),
                 format_func=lambda x: x.value.title(),
-                key="feedback_type"
+                key=f"feedback_type_{project_name}"
             )
         
         # Priority selection
@@ -71,7 +71,7 @@ def render_feedback_injector(project_name: str):
             options=list(FeedbackPriority),
             value=FeedbackPriority.NORMAL,
             format_func=lambda x: f"{x.name} ({x.value})",
-            key="feedback_priority"
+            key=f"feedback_priority_{project_name}"
         )
         
         # Feedback content
@@ -79,7 +79,7 @@ def render_feedback_injector(project_name: str):
             "Feedback Content",
             placeholder="Enter specific, actionable feedback...",
             height=150,
-            key="feedback_content"
+            key=f"feedback_content_{project_name}"
         )
         
         # Template buttons for common feedback
@@ -87,19 +87,22 @@ def render_feedback_injector(project_name: str):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("More detail", use_container_width=True):
-                st.session_state.feedback_content = "Please add more detail and description here."
+            if st.button("More detail", use_container_width=True, key=f"template_detail_{project_name}"):
+                st.session_state[f"feedback_content_{project_name}"] = "Please add more detail and description here."
+                st.rerun()
         
         with col2:
-            if st.button("Simplify", use_container_width=True):
-                st.session_state.feedback_content = "This is too complex. Please simplify and make it more accessible."
+            if st.button("Simplify", use_container_width=True, key=f"template_simplify_{project_name}"):
+                st.session_state[f"feedback_content_{project_name}"] = "Please simplify and make it more accessible."
+                st.rerun()
         
         with col3:
-            if st.button("Check canon", use_container_width=True):
-                st.session_state.feedback_content = "Please check this against established canon rules and ensure consistency."
+            if st.button("Check canon", use_container_width=True, key=f"template_canon_{project_name}"):
+                st.session_state[f"feedback_content_{project_name}"] = "Please check this against established canon rules and ensure consistency."
+                st.rerun()
         
         # Inject button
-        if st.button("💬 Inject Feedback", type="primary", use_container_width=True):
+        if st.button("💬 Inject Feedback", type="primary", use_container_width=True, key=f"inject_btn_{project_name}"):
             if feedback_content.strip():
                 # Add feedback
                 feedback_id = feedback_manager.add_feedback(
@@ -126,7 +129,7 @@ def render_feedback_injector(project_name: str):
                 st.success(f"Feedback injected for {target_agent}")
                 
                 # Clear the text area
-                st.session_state.feedback_content = ""
+                st.session_state[f"feedback_content_{project_name}"] = ""
                 
                 # Trigger UI update
                 st.rerun()
@@ -154,10 +157,10 @@ def render_feedback_injector(project_name: str):
                 if feedback:
                     with st.expander(f"{agent} ({len(feedback)})", expanded=False):
                         for msg in feedback:
-                            render_feedback_message(msg, feedback_manager)
+                            render_feedback_message(msg, feedback_manager, project_name)
             
             # Clear all button
-            if st.button("🗑️ Clear All Processed", type="secondary"):
+            if st.button("🗑️ Clear All Processed", type="secondary", key=f"clear_all_{project_name}"):
                 cleared = feedback_manager.clear_processed()
                 st.success(f"Cleared {cleared} processed messages")
                 st.rerun()
@@ -165,9 +168,14 @@ def render_feedback_injector(project_name: str):
             st.info("No pending feedback")
 
 
-def render_feedback_message(feedback, feedback_manager):
+def render_feedback_message(feedback, feedback_manager, project_name: str):
     """
     Render a single feedback message.
+    
+    Args:
+        feedback: FeedbackMessage object
+        feedback_manager: FeedbackManager instance
+        project_name: Project name for unique keys
     """
     # Priority colors
     priority_colors = {
@@ -195,7 +203,7 @@ def render_feedback_message(feedback, feedback_manager):
                 </span>
             </div>
             <div style="color: #aaa; font-size: 0.8em;">
-                {feedback.created_at[11:19]}  <!-- Show time only -->
+                {feedback.created_at[11:19]}
             </div>
         </div>
         <div style="margin-top: 8px;">
@@ -207,6 +215,6 @@ def render_feedback_message(feedback, feedback_manager):
     st.markdown(html, unsafe_allow_html=True)
     
     # Mark as processed button
-    if st.button("✅ Mark Processed", key=f"mark_processed_{feedback.id}"):
+    if st.button("✅ Mark Processed", key=f"mark_processed_{feedback.id}_{project_name}"):
         feedback_manager.mark_as_processed(feedback.id)
         st.rerun()

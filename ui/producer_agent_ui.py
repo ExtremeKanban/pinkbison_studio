@@ -1,3 +1,7 @@
+"""
+Producer Agent UI with Phase 1 real-time controls.
+"""
+
 import streamlit as st
 
 from typing import TYPE_CHECKING
@@ -15,7 +19,13 @@ def render_producer_agent_panel(producer):
     - Single Chapter
     - Full Story
     - Director Mode
+    
+    Args:
+        producer: ProducerAgent instance
     """
+    # Get project name from producer
+    project_name = producer.project_name
+    
     # Clean up bad session state values (from old code)
     for key in ["producer_auto_memory", "producer_run_continuity", "producer_run_editor"]:
         if key in st.session_state and not isinstance(st.session_state[key], bool):
@@ -51,6 +61,28 @@ def render_producer_agent_panel(producer):
 - Run Director Mode again in High‑Quality Mode.
 - Produces the most coherent, polished version of your story.
         """)
+
+    # ---------------------------------------------------------
+    # Real-Time Pipeline Controls (PHASE 1)
+    # ---------------------------------------------------------
+    st.subheader("⏱️ Real-Time Controls")
+    
+    try:
+        from ui.pipeline_controls_ui import render_pipeline_controls
+        render_pipeline_controls(project_name)
+    except Exception as e:
+        st.info(f"Real-time controls unavailable: {str(e)}")
+    
+    st.markdown("---")
+    
+    # PHASE 1 info
+    st.info("""
+    **Phase 1: Real-Time Mode Available**
+    - Non-blocking execution
+    - Pause/Resume/Stop controls
+    - Live feedback injection
+    - Progress tracking
+    """)
 
     # ---------------------------------------------------------
     # Seed idea
@@ -153,13 +185,15 @@ def render_producer_agent_panel(producer):
     # ---------------------------------------------------------
     # Run button
     # ---------------------------------------------------------
-    run_button = st.button("Run Producer Pipeline")
+    run_button = st.button("Run Producer Pipeline (Legacy Blocking Mode)")
 
     # Output placeholders
     progress_placeholder = st.empty()
     output_placeholder = st.empty()
 
     if run_button:
+        st.warning("Running in blocking mode - UI will freeze until complete!")
+        
         seed = st.session_state["producer_seed_idea"].strip()
         if not seed:
             st.info("Provide a seed idea for the Producer Agent.")
@@ -167,7 +201,6 @@ def render_producer_agent_panel(producer):
 
         producer.model_mode = model_mode
         agent = producer
-
 
         with st.spinner("Running Producer Agent pipeline..."):
             if goal_mode == "story_bible":
@@ -220,7 +253,6 @@ def render_producer_agent_panel(producer):
 
         # Save into session only (Producer already saved pipeline results to ProjectState)
         st.session_state["producer_last_result"] = result
-        # DON'T call save_project_state here - it overwrites pipeline_results!
         # ---------------------------------------------------------
         # Output Rendering
         # ---------------------------------------------------------
@@ -270,3 +302,21 @@ def render_producer_agent_panel(producer):
                         )
 
             st.success("Producer Agent pipeline complete.")
+
+
+# Alternative function that takes project_name instead of producer
+def render_producer_agent_panel_by_name(project_name: str):
+    """Alternative version that takes project_name instead of producer."""
+    try:
+        from ui.common import get_producer
+        producer = get_producer(project_name)
+        render_producer_agent_panel(producer)
+    except Exception as e:
+        st.error(f"Could not load producer for {project_name}: {str(e)}")
+        st.info("Running in basic mode")
+        
+        # Basic fallback
+        st.header("🎬 Producer Agent (Basic Fallback)")
+        seed = st.text_area("Seed Idea", key="basic_seed")
+        if st.button("Test Producer"):
+            st.info(f"Would run producer for {project_name} with seed: {seed}")

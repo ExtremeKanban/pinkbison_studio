@@ -71,3 +71,64 @@ class AgentBase:
         """Get recent messages from EventBus"""
         events = self.event_bus.get_recent(self.name, limit=limit)
         return [e.payload for e in events]
+
+    async def run_async(self, *args, **kwargs):
+        """
+        Async version of agent run method.
+        
+        This is a template method that subclasses can override.
+        By default, it runs the synchronous run() method in a thread pool.
+        """
+        import asyncio
+        
+        # Check for feedback before running
+        from core.registry import REGISTRY
+        try:
+            pipeline_controller = REGISTRY.get_pipeline_controller(self.project_name)
+            feedback_manager = pipeline_controller.feedback_manager
+            
+            # Get feedback for this agent
+            feedback = feedback_manager.get_feedback_for_agent(self.name)
+            if feedback:
+                # Log that we received feedback
+                self.log(
+                    f"Received {len(feedback)} feedback items before execution",
+                    event_type="feedback_received"
+                )
+                
+                # Incorporate feedback into kwargs if possible
+                if 'feedback' in self.run.__code__.co_varnames:
+                    kwargs['feedback'] = [fb.content for fb in feedback[:3]]
+                    
+                # Mark feedback as processed
+                for fb in feedback[:3]:
+                    feedback_manager.mark_as_processed(fb.id)
+        except Exception as e:
+            # If pipeline controller not available, continue without feedback
+            pass
+        
+        # Run the synchronous method in a thread pool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: self.run(*args, **kwargs)
+        )
+        
+        return result
+
+
+    def check_for_feedback(self) -> list:
+        """
+        Check for unprocessed feedback for this agent.
+        
+        Returns:
+            List of feedback messages (empty if none)
+        """
+        try:
+            from core.registry import REGISTRY
+            pipeline_controller = REGISTRY.get_pipeline_controller(self.project_name)
+            feedback_manager = pipeline_controller.feedback_manager
+            
+            return feedback_manager.get_feedback_for_agent(self.name)
+        except:
+            return []

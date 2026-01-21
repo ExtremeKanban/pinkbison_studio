@@ -52,8 +52,8 @@ class EventBus:
         self._event_counter = 0
     
     def publish(self, sender: str, recipient: str, event_type: str, 
-                payload: Dict[str, Any]) -> Event:
-        """Publish event to bus"""
+            payload: Dict[str, Any]) -> Event:
+        """Publish event to bus with WebSocket broadcasting."""
         event = Event.create(
             project_name=self.project_name,
             sender=sender,
@@ -64,6 +64,28 @@ class EventBus:
         
         self.buffer.append(event)
         self._notify_subscribers(event)
+        
+        # NEW: WebSocket broadcasting for real-time updates
+        try:
+            from core.websocket_manager import WEBSOCKET_MANAGER
+            if WEBSOCKET_MANAGER.running:
+                WEBSOCKET_MANAGER.send_to_project(
+                    self.project_name,
+                    'eventbus_message',
+                    {
+                        'sender': sender,
+                        'recipient': recipient,
+                        'event_type': event_type,
+                        'payload': payload
+                    }
+                )
+        except ImportError:
+            # WebSocket manager not available yet
+            pass
+        except Exception as e:
+            # Log but don't crash
+            print(f"[EventBus] WebSocket broadcast error: {e}")
+        
         return event
     
     def subscribe(self, agent_name: str, callback: Callable[[Event], None]) -> None:

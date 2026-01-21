@@ -368,3 +368,18 @@ Return as JSON with keys: core_problems, proposed_canon_rules, guidance
             recipient="ALL",
             payload={"type": "creative_guidance", "guidance": guidance_str[:200]},
         )
+
+    async def analyze_scene_critique_async(self, issues: str, original_text: str) -> Dict[str, Any]:
+        """
+        Async version of analyze_scene_critique.
+        """
+        import asyncio
+        
+        # Run the synchronous method in thread pool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: self.analyze_scene_critique(issues, original_text)
+        )
+        
+        return result

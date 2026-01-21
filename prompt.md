@@ -7,8 +7,8 @@ QUICK REFERENCE
 **Stack**: Python 3.x, Streamlit, FAISS, PyTorch, local Qwen LLMs (vLLM + Transformers)  
 **Environment**: Windows 11 + WSL Ubuntu, Nvidia GPU
 
-**Immediate Focus**: Real-time workflow & feedback (WebSocket, non-blocking UI)  
-**Next Phases**: Smoke test isolation → Autonomous revision → GitHub setup
+**Immediate Focus**: Review REAL-TIME WORKFLOW & FEEDBACK implementation & create comprehensive test suite  
+**Next Phases**: Remove legacy blocking code → Cleanup test files → test suite → Autonomous revision → GitHub setup
 
 I'm building a modular, agentic AI creative studio in Python with Streamlit and a background Orchestrator. I want you to understand exactly what I've already built, what my current architecture looks like, and what's still on the roadmap.
 
@@ -411,44 +411,164 @@ HARDWARE & ENVIRONMENT SPECS
 4. Windows: Orchestrator process (blocking `run_forever()`) → optional
 
 --------------------------------
+FEATURE STATUS: REAL-TIME WORKFLOW & FEEDBACK (IMPLEMENTED)
+==============================================
+
+We have implemented real-time workflow with the following components:
+
+**✅ COMPLETED:**
+1. **WebSocket Infrastructure** (`core/websocket_manager.py`)
+   - WebSocket server running on port 8765
+   - Thread-safe broadcasting to project subscribers
+   - Automatic server startup with Streamlit
+
+2. **EventBus WebSocket Integration** (`core/event_bus.py`)
+   - Modified `publish()` method to broadcast events via WebSocket
+   - Events sent as `eventbus_message` type with full metadata
+
+3. **Streamlit WebSocket Client** (`ui/websocket_client.py`)
+   - WebSocket client that runs in background thread
+   - Message storage in Streamlit session state
+   - Callback system for handling different message types
+
+4. **Real-time UI Components** (`ui/live_event_panel.py`, `ui/pipeline_controls_ui.py`, `ui/feedback_injector_ui.py`)
+   - Live Event Stream with WebSocket updates
+   - Pipeline controls with start/pause/resume/stop
+   - Feedback injection interface
+   - Non-blocking UI updates
+
+5. **Updated Main UI** (`studio_ui.py`)
+   - WebSocket system initialization
+   - Real-time status indicators
+   - Integration of all feture components
+
+**🔍 NEEDS VERIFICATION:**
+- WebSocket events appearing in Live Event Stream
+- Real-time updates without page refresh
+- Pipeline controls working with WebSocket
+- Feedback injection during pipeline execution
+
+**🔧 KNOWN ISSUES:**
+- WebSocket server shows "failed to start" in tests (because it's already running)
+- Browser automation tests failing due to Playwright/Streamlit compatibility
+- Some duplicate keys in UI components may need cleanup
+
+**🎯 FEATURE IS FUNCTIONALLY COMPLETE BUT NEEDS PROPER TESTING**
+
+--------------------------------
 ROADMAP 
 --------------------------------
 
-Real-Time Workflow and Feedback (NOT STARTED)
-==============================================
+REVIEW & TESTING: Verification & Test Suite (IMMEDIATE PRIORITY)
+=======================================================================
 
-I want to move from "batch pipeline" behavior to **real-time, interactive workflows**, including:
+We need to properly verify FEATURE REAL-TIME WORKFLOW & FEEDBACK implementation and create a comprehensive test suite.
 
-- Background execution of pipelines so the UI stays responsive
-- Live updates in the Intelligence Panel as agents run
-- The ability to inject human feedback into the EventBus during a run
-- Agents that check for new feedback/messages between steps
-- The ability to pause, resume, or step through pipelines
+**Primary Goal**: Verify that all of the real-time features work correctly in the actual Streamlit UI.
 
-**Key features:**
-- Non-blocking pipeline execution
-- Real-time progress updates
-- Mid-pipeline feedback injection
-- Pause/resume/step controls
-- Agent-aware of new feedback between tasks
+**Key Verification Points:**
+1. **WebSocket Connectivity**
+   - Server starts automatically with Streamlit
+   - Clients can connect and subscribe
+   - Connection status shows in UI
 
-Smoke Test Isolation and Validation (NOT STARTED)
+2. **Real-time Event Streaming**
+   - EventBus events appear in Live Event Stream
+   - Events update without page refresh
+   - Multiple event types display correctly
+
+3. **Pipeline Controls**
+   - Start/pause/resume/stop buttons work
+   - Pipeline status updates in real-time
+   - Progress bars update dynamically
+
+4. **Feedback Injection**
+   - Can inject feedback during pipeline execution
+   - Feedback appears for target agents
+   - Priority system works correctly
+
+5. **UI Responsiveness**
+   - UI doesn't freeze during pipeline execution
+   - Multiple components update simultaneously
+   - Error handling doesn't break UI
+
+**Testing Approach:**
+1. **Manual UI Testing** - Step-by-step verification in browser
+2. **Integration Tests** - Test WebSocket + EventBus + UI integration
+3. **Component Tests** - Individual UI component testing
+4. **End-to-End Tests** - Full workflow testing
+
+**Expected Output:**
+- Comprehensive test suite covering all REAL-TIME WORKFLOW & FEEDBACK
+- Clear pass/fail criteria for each feature
+- Documentation of any issues found
+- Recommendations for fixes
+
+LEGACY CODE REMOVAL: Cleanup Blocking Functionality (NEXT)
+==========================================================
+
+Once REAL-TIME WORKFLOW & FEEDBACK is verified, remove all legacy blocking code.
+
+**Targets for Removal:**
+1. **Old Producer Agent methods** that block UI
+2. **Synchronous pipeline execution** patterns
+3. **Legacy test files** from previous iterations
+4. **Duplicate UI components** with "basic" or "simple" suffixes
+5. **Any auto-refresh logic** using `time.sleep()` + `st.rerun()`
+
+**Cleanup Tasks:**
+1. Audit codebase for blocking patterns
+2. Replace with async/WebSocket alternatives
+3. Remove deprecated files
+4. Update imports and dependencies
+5. Verify all functionality still works
+
+TEST FILE CLEANUP: Organize Test Structure (AFTER CLEANUP)
+==========================================================
+
+Consolidate and organize all test files.
+
+**Current Test File Issues:**
+- Multiple test files with similar names
+- No clear test organization
+- Some tests don't actually test anything
+- Browser automation tests failing
+
+**New Test Structure:**
+tests/
+├── unit/ # Unit tests
+│ ├── core/ # Core component tests
+│ ├── agents/ # Agent tests
+│ └── ui/ # UI component tests
+├── integration/ # Integration tests
+│ ├── websocket/ # WebSocket integration tests
+│ ├── eventbus/ # EventBus integration tests
+│ └── persistence/ # Persistence layer tests
+├── e2e/ # End-to-end tests
+│ ├── websocket_ui/ # WebSocket UI tests
+│ ├── pipeline_flows/ # Pipeline workflow tests
+│ └── realtime_features/ # Real-time feature tests
+└── fixtures/ # Test fixtures and data
+
+**Cleanup Tasks:**
+1. Delete unused/duplicate test files
+2. Move tests to appropriate directories
+3. Update test imports and dependencies
+4. Create unified test runner
+5. Add proper test documentation
+
+Full Test Suite (NOT STARTED)
 ==================================================
 
-I want to upgrade the smoke test so that it:
+I want a full test suite:
 
-- Creates a temporary project (e.g., `test_project_<uuid>`)
-- Runs the full pipeline inside that project
-- Validates that:
-  - Memory is written
-  - Graph is updated
-  - Persistence files exist
-  - EventBus messages are logged to AuditLog
-  - Pipeline results are saved to ProjectState
-  - Chapter files are created in outputs/
-- Deletes the project folder afterward
+- Perform smoke tests that quickly show if the system is up and running
+- Perform regression tests to make sure existing functionality hasn't broken
+- A full deep set of tests that runs through the entire workflow and makes sure everything works perfectly
+- Tests should use their own project and clean up after themselves.
 
 This will keep my real projects clean and give me confidence that the system works end-to-end.
+When completed, I want to rewrite the TESTING_REQUIREMENTS.md to document how testing works going forward
 
 Higher-Level Autonomy and Canon Enforcement (PARTIAL)
 =======================================================
@@ -520,28 +640,38 @@ I care about:
 - Long-term scalability
 
 --------------------------------
-WHAT I WANT FROM YOU
+WHAT I WANT FROM YOU IN THIS CHAT
 --------------------------------
+
+**Immediate Focus**: 
+1. Review the REAL-TIME WORKFLOW & FEEDBACK implementation for completeness
+2. Create a comprehensive test plan to verify real-time features
+3. Help me test the actual Streamlit UI functionality
+4. Identify any issues with the current implementation
+
+**Specifically Help With**:
+1. **Test Strategy**: How to properly test WebSocket real-time features
+2. **UI Verification**: Step-by-step manual testing procedures
+3. **Integration Testing**: Test WebSocket + EventBus + UI together
+4. **Issue Identification**: Find and document any bugs or issues
+5. **Cleanup Planning**: Plan for legacy code removal after verification
 
 **Ground Rules**:
 1. Treat this document as the authoritative snapshot of my current system
-2. Always distinguish between: what exists | what we're designing | what's future work
-3. Provide concrete, file-level changes with clear migration steps
+2. Focus on TESTING and VERIFICATION of REAL-TIME WORKFLOW & FEEDBACK
+3. Provide concrete, actionable testing steps
 4. Don't break existing workflows
-5. Follow established code standards in `docs/standards/CODE_STANDARDS.md`
-6. Follow all standards in docs/standards/*
-7. Offer change suggestions to standards if they are incorrect, contradictory, or no longer serve the project
+5. Follow established code standards
+6. Do not number roadmap items, use their feature names especially in code comments. (it is ok to use numbers in our conversation for clarity, but don't use them in code, code comments, or file names)
 
 **Architecture Patterns to Follow**:
-- Agents are stateless, created via AgentFactory
-- Use EventBus for ephemeral coordination
-- Use AuditLog for persistent event history
-- Use ProjectState for state management
-- Use Registry for project-scoped resources
-- All persistence goes through appropriate managers
+- WebSocket for real-time communication
+- EventBus for agent coordination
+- Non-blocking UI updates
+- Project-scoped resource management
 
 **Never Do**:
-- Don't reference IntelligenceBus (it's been removed)
-- Don't create agent instances directly (use AgentFactory)
-- Don't write to `projects/*.json` (use ProjectState)
-- Don't break backward compatibility without migration guide
+- Don't create duplicate test files
+- Don't break WebSocket functionality
+- Don't revert to blocking patterns
+- Don't skip proper testing procedures

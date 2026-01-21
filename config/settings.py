@@ -43,3 +43,35 @@ class StorageConfig:
 # Global singleton instances
 MODEL_CONFIG = ModelConfig()
 STORAGE_CONFIG = StorageConfig()
+
+
+# ============================================================================
+# REAL-TIME CONFIGURATION
+# ============================================================================
+
+class RealTimeConfig:
+    """Configuration for real-time workflow features."""
+    
+    # Pipeline execution
+    PIPELINE_TIMEOUT = 3600  # 1 hour maximum per pipeline
+    PIPELINE_CHECKPOINT_INTERVAL = 30  # Create checkpoint every 30 seconds
+    
+    # Event streaming
+    EVENT_STREAM_BUFFER_SIZE = 1000  # Max events to keep in memory
+    EVENT_STREAM_REFRESH_RATE = 2  # seconds between UI updates
+    
+    # Feedback system
+    FEEDBACK_QUEUE_MAX_SIZE = 100  # Max feedback messages per project
+    FEEDBACK_AUTO_CLEANUP_HOURS = 24  # Auto-clean processed feedback after 24h
+    
+    # UI settings
+    UI_AUTO_REFRESH_ENABLED = True
+    UI_PROGRESS_UPDATE_INTERVAL = 1  # seconds
+    
+    # Async execution
+    ASYNC_MAX_WORKERS = 4  # Max concurrent async tasks
+    ASYNC_IO_TIMEOUT = 30  # seconds for I/O operations
+
+
+# Global instance
+REALTIME_CONFIG = RealTimeConfig()

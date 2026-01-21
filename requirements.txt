@@ -23,3 +23,8 @@ uvicorn
 tiktoken
 huggingface-hub
 rich
+
+asyncio>=3.4.3
+concurrent-log-handler>=0.9.20
+aiohttp>=3.9.0  # For potential WebSocket support later
+websockets>=12.0  # For potential WebSocket support later

@@ -1,9 +1,9 @@
 """
-Pipeline control UI with start/pause/resume/stop buttons.
+Pipeline control UI with start/pause/resume/stop buttons - CLEAN VERSION.
 """
 
 import streamlit as st
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from core.registry import REGISTRY
 from ui.common import get_producer
@@ -13,10 +13,12 @@ def render_pipeline_controls(project_name: str):
     """
     Render pipeline control buttons and status.
     """
-    import time
+    # Initialize session state counter if not exists (more stable than timestamp)
+    if f"pipeline_render_count_{project_name}" not in st.session_state:
+        st.session_state[f"pipeline_render_count_{project_name}"] = 0
     
-    # Use timestamp to make keys unique each time it's rendered
-    timestamp = str(int(time.time() * 1000))[-6:]  # Last 6 digits of timestamp
+    # Use render count instead of timestamp for keys
+    render_id = st.session_state[f"pipeline_render_count_{project_name}"]
     
     with st.expander("🎮 Pipeline Controls", expanded=True):
         
@@ -27,50 +29,47 @@ def render_pipeline_controls(project_name: str):
         # Current status display
         st.markdown(f"**Current Status:** `{status['status']}`")
         
+        # Show error message if status is error
+        if status['status'] == 'error' and status.get('current_task'):
+            st.error(f"❌ {status['current_task']}")
+        
         if status["progress"]["percent_complete"] > 0:
             st.progress(
                 status["progress"]["percent_complete"] / 100,
                 text=status["progress"]["current_step"]
             )
         
-        # Control buttons in columns
-        col1, col2, col3, col4 = st.columns(4)
+        # Control buttons in columns (only pause/resume/stop - start is via Quick Start below)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("▶️ Start", 
-                        disabled=status["is_running"] or status["is_paused"],
-                        use_container_width=True,
-                        key=f"pipeline_start_{project_name}_{timestamp}"):  # ADD timestamp
-                _start_pipeline_ui(project_name)
-        
-        with col2:
             if st.button("⏸️ Pause",
                         disabled=not status["is_running"],
                         use_container_width=True,
-                        key=f"pipeline_pause_{project_name}_{timestamp}"):  # ADD timestamp
+                        key=f"pipeline_pause_{project_name}_{render_id}"):
                 if pipeline_controller.pause():
                     st.success("Pipeline paused")
                     st.rerun()
                 else:
                     st.error("Could not pause pipeline")
         
-        with col3:
+        with col2:
             if st.button("⏯️ Resume",
                         disabled=not status["is_paused"],
                         use_container_width=True,
-                        key=f"pipeline_resume_{project_name}_{timestamp}"):  # ADD timestamp
+                        key=f"pipeline_resume_{project_name}_{render_id}"):
                 if pipeline_controller.resume():
                     st.success("Pipeline resumed")
                     st.rerun()
                 else:
                     st.error("Could not resume pipeline")
         
-        with col4:
+        with col3:
             if st.button("⏹️ Stop",
                         disabled=not (status["is_running"] or status["is_paused"]),
                         use_container_width=True,
                         type="secondary",
-                        key=f"pipeline_stop_{project_name}_{timestamp}"):  # ADD timestamp
+                        key=f"pipeline_stop_{project_name}_{render_id}"):
                 if pipeline_controller.stop():
                     st.success("Pipeline stopped")
                     st.rerun()
@@ -91,35 +90,38 @@ def render_pipeline_controls(project_name: str):
                     "full_story": "📚 Full Story",
                     "director": "🎬 Director Mode"
                 }[x],
-                key=f"pipeline_type_select_{project_name}_{timestamp}"  # ADD timestamp
+                key=f"pipeline_type_select_{project_name}_{render_id}"
             )
             
             # Show pipeline-specific options
+            chapter_index = None
             if pipeline_type == "chapter":
                 chapter_index = st.number_input(
                     "Chapter Index",
                     min_value=0,
                     max_value=99,
                     value=0,
-                    key=f"pipeline_chapter_index_{project_name}_{timestamp}"  # ADD timestamp
+                    key=f"pipeline_chapter_index_{project_name}_{render_id}"
                 )
             
-            # Quick start button
-            if st.button("🚀 Quick Start", 
-                        type="primary", 
+            # Start pipeline button
+            if st.button("▶️ Start Pipeline", 
+                        type="secondary",  # Less prominent than primary
                         use_container_width=True,
-                        key=f"pipeline_quick_start_{project_name}_{timestamp}"):  # ADD timestamp
-                _start_pipeline_ui(project_name, pipeline_type)
+                        key=f"pipeline_quick_start_{project_name}_{render_id}"):
+                # Increment counter on click
+                st.session_state[f"pipeline_render_count_{project_name}"] += 1
+                _start_pipeline_ui(project_name, str(render_id), pipeline_type, chapter_index)
 
 
-def _start_pipeline_ui(project_name: str, context: str, pipeline_type: Optional[str] = None):
+def _start_pipeline_ui(
+    project_name: str, 
+    render_id: str, 
+    pipeline_type: Optional[str] = None,
+    chapter_index: Optional[int] = None
+):
     """
     Start a pipeline from UI parameters.
-    
-    Args:
-        project_name: Name of the project
-        context: Context identifier
-        pipeline_type: Optional pipeline type
     """
     try:
         # Get producer
@@ -130,36 +132,70 @@ def _start_pipeline_ui(project_name: str, context: str, pipeline_type: Optional[
         
         # Determine pipeline type if not specified
         if not pipeline_type:
-            pipeline_type = st.session_state.get(f"pipeline_type_select_{project_name}_{context}", "story_bible")  # UPDATED key
+            pipeline_type = st.session_state.get(
+                f"pipeline_type_select_{project_name}_{render_id}", 
+                "story_bible"
+            )
         
-        # Build pipeline arguments based on type
-        pipeline_args = {
-            "idea": st.session_state.get("producer_seed_idea", ""),
-            "genre": st.session_state.get("project_genre", ""),
-            "tone": st.session_state.get("project_tone", ""),
+        # Build pipeline arguments based on session state
+        # Start with common args for all pipeline types
+        common_args = {
+            "idea": st.session_state.get("producer_seed_idea", "A thrilling adventure story"),
+            "genre": st.session_state.get("project_genre", "Adventure"),
+            "tone": st.session_state.get("project_tone", "Exciting"),
             "themes": st.session_state.get("project_themes", ""),
             "setting": st.session_state.get("project_setting", ""),
             "auto_memory": st.session_state.get("producer_auto_memory", True),
-            "run_continuity": st.session_state.get("producer_run_continuity", True),
-            "run_editor": st.session_state.get("producer_run_editor", True),
-            "max_chapters": st.session_state.get("producer_max_chapters", 10),
         }
         
-        # Add type-specific args
+        # Get pipeline-specific args
         if pipeline_type == "chapter":
-            pipeline_args["chapter_index"] = st.session_state.get(
-                f"pipeline_chapter_index_{project_name}_{context}", 0  # UPDATED key
-            )
+            if chapter_index is None:
+                chapter_index = st.session_state.get(
+                    f"pipeline_chapter_index_{project_name}_{render_id}", 
+                    0
+                )
+            pipeline_args = {
+                **common_args,
+                "run_continuity": st.session_state.get("producer_run_continuity", True),
+                "run_editor": st.session_state.get("producer_run_editor", True),
+                "max_chapters": st.session_state.get("producer_max_chapters", 10),
+                "chapter_index": chapter_index,
+            }
+        elif pipeline_type in ["full_story", "director"]:
+            pipeline_args = {
+                **common_args,
+                "run_continuity": st.session_state.get("producer_run_continuity", True),
+                "run_editor": st.session_state.get("producer_run_editor", True),
+                "max_chapters": st.session_state.get("producer_max_chapters", 10),
+            }
+        else:  # story_bible
+            # Story bible only uses common args
+            pipeline_args = common_args
         
-        # Get the appropriate async pipeline function
+        # Get the appropriate pipeline function with proper wrapper
+        # Note: PipelineController passes controller and feedback_manager params
+        # but Producer methods don't accept them, so we wrap to ignore them
         if pipeline_type == "story_bible":
-            pipeline_func = lambda **kwargs: producer.run_story_bible_pipeline(**kwargs)
+            def pipeline_func(controller=None, feedback_manager=None, **kwargs):
+                return producer.run_story_bible_pipeline(**kwargs)
+            task_name = "Story Bible Generation"
+            total_steps = 3
         elif pipeline_type == "chapter":
-            pipeline_func = lambda **kwargs: producer.run_chapter_pipeline(**kwargs)
+            def pipeline_func(controller=None, feedback_manager=None, **kwargs):
+                return producer.run_chapter_pipeline(**kwargs)
+            task_name = f"Chapter {chapter_index} Generation"
+            total_steps = 5
         elif pipeline_type == "full_story":
-            pipeline_func = lambda **kwargs: producer.run_full_story_pipeline(**kwargs)
+            def pipeline_func(controller=None, feedback_manager=None, **kwargs):
+                return producer.run_full_story_pipeline(**kwargs)
+            task_name = "Full Story Generation"
+            total_steps = pipeline_args["max_chapters"] + 3
         elif pipeline_type == "director":
-            pipeline_func = lambda **kwargs: producer.run_director_mode(**kwargs)
+            def pipeline_func(controller=None, feedback_manager=None, **kwargs):
+                return producer.run_director_mode(**kwargs)
+            task_name = "Director Mode"
+            total_steps = 10
         else:
             st.error(f"Unknown pipeline type: {pipeline_type}")
             return
@@ -167,28 +203,38 @@ def _start_pipeline_ui(project_name: str, context: str, pipeline_type: Optional[
         # Start the pipeline
         success = pipeline_controller.start_pipeline(
             pipeline_func=pipeline_func,
-            task_name=f"{pipeline_type}_{project_name}",
-            total_steps=10,
+            task_name=task_name,
+            total_steps=total_steps,
             **pipeline_args
         )
         
         if success:
-            st.success(f"{pipeline_type.replace('_', ' ').title()} pipeline started!")
-            pipeline_controller.feedback_manager.clear_processed()
+            st.success(f"✅ {task_name} started!")
+            st.info("💡 Pipeline running in background - UI stays responsive!")
+            # Clear any processed feedback
+            if hasattr(pipeline_controller, 'feedback_manager'):
+                pipeline_controller.feedback_manager.clear_processed()
+            # Rerun once to show updated status
             st.rerun()
         else:
-            st.error("Could not start pipeline (already running?)")
-        
+            st.error("❌ Could not start pipeline (already running?)")
+            current_status = pipeline_controller.get_status()
+            with st.expander("Show Status Details"):
+                st.write(f"Current status: {current_status['status']}")
+                st.write(f"Is running: {current_status['is_running']}")
+                st.write(f"Is paused: {current_status['is_paused']}")
+            
     except Exception as e:
-        st.error(f"Failed to start pipeline: {str(e)}")
-        import traceback
-        with st.expander("Error details"):
+        st.error(f"❌ Error starting pipeline")
+        with st.expander("Show Error Details"):
+            st.code(str(e))
+            import traceback
             st.code(traceback.format_exc())
 
 
 def render_pipeline_status_overview(project_name: str):
     """
-    Render a compact pipeline status overview.
+    Render a compact pipeline status overview for the dashboard.
     """
     try:
         pipeline_controller = REGISTRY.get_pipeline_controller(project_name)
@@ -196,32 +242,32 @@ def render_pipeline_status_overview(project_name: str):
         
         # Status badge with color
         status_colors = {
-            "idle": "gray",
-            "running": "green",
-            "paused": "yellow",
-            "stopped": "red",
-            "completed": "blue",
-            "error": "red"
+            "idle": "#808080",
+            "running": "#28a745",
+            "paused": "#ffc107",
+            "stopped": "#dc3545",
+            "completed": "#007bff",
+            "error": "#dc3545"
         }
         
-        status_color = status_colors.get(status["status"], "gray")
+        status_color = status_colors.get(status["status"], "#808080")
         
         # Create status HTML
         html = f"""
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
             <div style="
                 width: 12px;
                 height: 12px;
                 border-radius: 50%;
                 background-color: {status_color};
             "></div>
-            <span>Pipeline: <strong>{status['status']}</strong></span>
+            <span>Pipeline: <strong>{status['status'].upper()}</strong></span>
         """
         
         if status["progress"]["percent_complete"] > 0:
             html += f"""
             <span style="margin-left: 20px; color: #666;">
-                {status['progress']['percent_complete']:.1f}%
+                {status['progress']['percent_complete']:.1f}% - {status['progress']['current_step']}
             </span>
             """
         
@@ -229,5 +275,5 @@ def render_pipeline_status_overview(project_name: str):
         
         st.markdown(html, unsafe_allow_html=True)
         
-    except:
-        st.caption("Pipeline: Not initialized")
+    except Exception as e:
+        st.caption(f"Pipeline: Not initialized")

@@ -122,8 +122,8 @@ render_multi_orchestrator_panel(project_name)
 # 11. PHASE 1: FEEDBACK INJECTION
 # ============================================
 st.markdown("---")
-st.header("💬 Real-time Feedback")
-render_feedback_injector(project_name)
+# st.header("💬 Real-time Feedback")
+# render_feedback_injector(project_name)
 
 # ============================================
 # 12. FOOTER

@@ -8,7 +8,7 @@ from core.registry import REGISTRY
 
 # Import new real-time components
 from ui.live_event_panel import render_live_event_panel, render_pipeline_status_card
-from ui.pipeline_controls_ui import render_pipeline_controls, render_pipeline_status_overview
+from ui.pipeline_controls_ui import render_pipeline_status_overview
 from ui.feedback_injector_ui import render_feedback_injector
 
 

@@ -36,28 +36,79 @@ except Exception as e:
 # ============================================
 st.title("🎬 PinkBison Creative Studio")
 st.caption(f"**Project:** {project_name}")
+
+# How to Use (right after project name)
+with st.expander("ℹ️ How to Use", expanded=False):
+    st.markdown("""
+    ### Quick Start
+    
+    1. **Enter your story idea** below
+    2. **Select pipeline type** and click **Start**
+    3. **Watch real-time updates** as your story is generated
+    
+    ### Pipeline Types
+    
+    - **📖 Story Bible**: Generates outline, world, and characters (fastest)
+    - **📄 Single Chapter**: Generates one chapter from the story bible
+    - **📚 Full Story**: Generates complete story with all chapters (slowest)
+    - **🎬 Director Mode**: Advanced multi-pass refinement with continuity checks
+    """)
+
 st.markdown("---")
 
 # ============================================
-# 1. CREATIVE PIPELINE (Main Workflow)
+# MAIN WORKFLOW
 # ============================================
-st.header("Creative Pipeline")
 
-# Story idea input
+# Story idea input (bigger, more prominent)
 st.text_area(
     "Story Idea",
     key="producer_seed_idea",
-    height=120
+    height=150,
+    placeholder="A retired astronaut discovers an alien signal that only she can decode..."
 )
 
-# Pipeline controls with real-time updates
-from ui.producer_agent_ui import render_producer_agent_panel_by_name
-render_producer_agent_panel_by_name(project_name)
+# Pipeline controls inline
+from ui.pipeline_controls_ui import render_pipeline_controls_inline
+render_pipeline_controls_inline(project_name)
+
+# Auto-refresh when pipeline completes
+from core.registry import REGISTRY
+pc = REGISTRY.get_pipeline_controller(project_name)
+status = pc.get_status()
+
+# Show errors
+if status["status"] == "error":
+    st.error("❌ **Pipeline Error:**")
+    if status.get("current_task"):
+        st.code(status["current_task"])
+
+# Auto-rerun when pipeline completes
+if status["status"] == "completed":
+    if f"pipeline_completed_{project_name}" not in st.session_state:
+        st.session_state[f"pipeline_completed_{project_name}"] = True
+        st.rerun()
+elif status["status"] != "completed":
+    st.session_state.pop(f"pipeline_completed_{project_name}", None)
+
+st.markdown("---")
+
+# Show latest output immediately
+from ui.pipeline_output_display import render_pipeline_output
+render_pipeline_output(project_name)
+
+# DEBUG: Check if results are actually saved
+from core.project_state import ProjectState
+state = ProjectState.load(project_name)
+st.write(f"DEBUG: Found {len(state.pipeline_results)} pipeline results in state")
+if state.pipeline_results:
+    latest = state.pipeline_results[-1]
+    st.write(f"DEBUG: Latest result type: {latest.pipeline_type}, has {len(latest.result)} keys")
 
 st.markdown("---")
 
 # ============================================
-# 2. LIVE MONITORING
+# LIVE MONITORING
 # ============================================
 st.header("📊 Live Monitoring")
 
@@ -70,7 +121,7 @@ except Exception as e:
 st.markdown("---")
 
 # ============================================
-# 3. GENERATED CONTENT
+# GENERATED CONTENT
 # ============================================
 st.header("📚 Generated Content")
 
@@ -80,7 +131,7 @@ render_pipeline_history(project_name)
 st.markdown("---")
 
 # ============================================
-# 4. PROJECT KNOWLEDGE
+# PROJECT KNOWLEDGE
 # ============================================
 st.header("🧠 Project Knowledge")
 
@@ -97,7 +148,7 @@ with tab2:
 st.markdown("---")
 
 # ============================================
-# 5. ADVANCED TOOLS (Collapsed)
+# ADVANCED TOOLS (Collapsed)
 # ============================================
 with st.expander("⚙️ Advanced Tools", expanded=False):
     from ui.memory_search_ui import render_memory_search

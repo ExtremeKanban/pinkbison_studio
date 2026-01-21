@@ -56,8 +56,17 @@ class ProducerAgent:
         
         Creates fresh agent instances for each step.
         """
+        # Get pipeline controller for progress updates
+        from core.registry import REGISTRY
+        pipeline_controller = REGISTRY.get_pipeline_controller(self.project_name)
         
         # 1) Outline
+        pipeline_controller.update_progress(
+            step_number=1,
+            current_step="plot_outline",
+            step_description="Generating 3-act plot outline"
+        )
+        
         plot_agent = self.agent_factory.create_plot_architect()
         outline = plot_agent.run(
             idea=idea,
@@ -69,6 +78,12 @@ class ProducerAgent:
         )
 
         # 2) World
+        pipeline_controller.update_progress(
+            step_number=2,
+            current_step="world_bible",
+            step_description="Building world bible"
+        )
+        
         world_agent = self.agent_factory.create_worldbuilder()
         world_doc = world_agent.run(
             outline=outline,
@@ -80,6 +95,12 @@ class ProducerAgent:
         )
 
         # 3) Characters
+        pipeline_controller.update_progress(
+            step_number=3,
+            current_step="character_bible",
+            step_description="Creating character bible"
+        )
+        
         char_agent = self.agent_factory.create_character_agent()
         character_doc = char_agent.run(
             outline=outline,
@@ -134,13 +155,11 @@ class ProducerAgent:
             pipeline_controller.update_progress(
                 current_step="plot_outline",
                 step_number=1,
-                total_steps=3,
-                description="Generating 3-act plot outline"
+                step_description="Generating 3-act plot outline"
             )
             
             # Check for stop/pause
-            pipeline_controller.wait_if_paused()
-            if pipeline_controller.should_stop():
+            if not pipeline_controller.wait_for_resume():
                 return {"status": "stopped", "step": "plot_outline"}
             
             plot_agent = self.agent_factory.create_plot_architect()
@@ -160,12 +179,10 @@ class ProducerAgent:
             pipeline_controller.update_progress(
                 current_step="world_bible",
                 step_number=2,
-                total_steps=3,
-                description="Building world bible"
+                step_description="Building world bible"
             )
             
-            pipeline_controller.wait_if_paused()
-            if pipeline_controller.should_stop():
+            if not pipeline_controller.wait_for_resume():
                 return {"status": "stopped", "step": "world_bible"}
             
             world_agent = self.agent_factory.create_worldbuilder()
@@ -185,12 +202,10 @@ class ProducerAgent:
             pipeline_controller.update_progress(
                 current_step="character_bible",
                 step_number=3,
-                total_steps=3,
-                description="Creating character bible"
+                step_description="Creating character bible"
             )
             
-            pipeline_controller.wait_if_paused()
-            if pipeline_controller.should_stop():
+            if not pipeline_controller.wait_for_resume():
                 return {"status": "stopped", "step": "character_bible"}
             
             char_agent = self.agent_factory.create_character_agent()
@@ -380,12 +395,10 @@ Do not include any other text, just the JSON.
             pipeline_controller.update_progress(
                 current_step=f"scene_{beat_idx + 1}",
                 step_number=beat_idx + 1,
-                total_steps=total_beats,
-                description=f"Writing scene: {beat[:50]}..."
+                step_description=f"Writing scene: {beat[:50]}..."
             )
             
-            pipeline_controller.wait_if_paused()
-            if pipeline_controller.should_stop():
+            if not pipeline_controller.wait_for_resume():
                 return {"status": "stopped", "scenes_completed": beat_idx}
             
             # Check for feedback before generating scene
@@ -419,8 +432,7 @@ Do not include any other text, just the JSON.
             pipeline_controller.update_progress(
                 current_step="continuity_check",
                 step_number=total_beats + 1,
-                total_steps=total_beats + 2,
-                description="Running continuity checks"
+                step_description="Running continuity checks"
             )
             
             continuity_agent = self.agent_factory.create_continuity_agent()
@@ -436,8 +448,7 @@ Do not include any other text, just the JSON.
             pipeline_controller.update_progress(
                 current_step="editor_polish",
                 step_number=total_beats + 2,
-                total_steps=total_beats + 2,
-                description="Polishing with editor"
+                step_description="Polishing with editor"
             )
             
             editor_agent = self.agent_factory.create_editor_agent()
@@ -543,8 +554,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="story_bible",
             step_number=1,
-            total_steps=5,
-            description="Generating story foundation"
+            step_description="Generating story foundation"
         )
         
         bible = await self.run_story_bible_pipeline_async(
@@ -556,7 +566,7 @@ Do not include any other text, just the JSON.
             auto_memory=auto_memory
         )
         
-        if pipeline_controller.should_stop():
+        if not pipeline_controller.wait_for_resume():
             return {"status": "stopped", "step": "story_bible"}
         
         outline = bible["outline"]
@@ -567,12 +577,10 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="chapter_planning",
             step_number=2,
-            total_steps=5,
-            description="Planning chapter structure"
+            step_description="Planning chapter structure"
         )
         
-        pipeline_controller.wait_if_paused()
-        if pipeline_controller.should_stop():
+        if not pipeline_controller.wait_for_resume():
             return {"status": "stopped", "step": "chapter_planning"}
         
         plan = await asyncio.get_event_loop().run_in_executor(
@@ -591,12 +599,10 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="chapter_generation",
             step_number=3,
-            total_steps=5,
-            description="Writing chapter content"
+            step_description="Writing chapter content"
         )
         
-        pipeline_controller.wait_if_paused()
-        if pipeline_controller.should_stop():
+        if not pipeline_controller.wait_for_resume():
             return {"status": "stopped", "step": "chapter_generation"}
         
         chapter_result = await self._generate_chapter_from_plan_async(
@@ -613,8 +619,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="saving_outputs",
             step_number=4,
-            total_steps=5,
-            description="Saving chapter to outputs"
+            step_description="Saving chapter to outputs"
         )
         
         self.output_manager.save_chapter(chapter_index, chapter_result)
@@ -634,8 +639,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="complete",
             step_number=5,
-            total_steps=5,
-            description="Chapter pipeline complete"
+            step_description="Chapter pipeline complete"
         )
         
         return result
@@ -735,8 +739,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="story_bible",
             step_number=1,
-            total_steps=3,
-            description="Generating story foundation"
+            step_description="Generating story foundation"
         )
         
         bible = await self.run_story_bible_pipeline_async(
@@ -748,7 +751,7 @@ Do not include any other text, just the JSON.
             auto_memory=auto_memory
         )
         
-        if pipeline_controller.should_stop():
+        if not pipeline_controller.wait_for_resume():
             return {"status": "stopped", "step": "story_bible"}
         
         outline = bible["outline"]
@@ -759,12 +762,10 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="chapter_planning",
             step_number=2,
-            total_steps=3,
-            description="Planning chapter structure"
+            step_description="Planning chapter structure"
         )
         
-        pipeline_controller.wait_if_paused()
-        if pipeline_controller.should_stop():
+        if not pipeline_controller.wait_for_resume():
             return {"status": "stopped", "step": "chapter_planning"}
         
         plan = await asyncio.get_event_loop().run_in_executor(
@@ -784,12 +785,10 @@ Do not include any other text, just the JSON.
             pipeline_controller.update_progress(
                 current_step=f"chapter_{idx + 1}",
                 step_number=idx + 1,
-                total_steps=total_chapters,
-                description=f"Generating chapter {idx + 1}/{total_chapters}: {chapter_plan.get('title', 'Untitled')}"
+                step_description=f"Generating chapter {idx + 1}/{total_chapters}: {chapter_plan.get('title', 'Untitled')}"
             )
             
-            pipeline_controller.wait_if_paused()
-            if pipeline_controller.should_stop():
+            if not pipeline_controller.wait_for_resume():
                 return {"status": "stopped", "chapters_completed": idx}
             
             chapter_result = await self._generate_chapter_from_plan_async(
@@ -811,8 +810,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="combining_story",
             step_number=total_chapters + 1,
-            total_steps=total_chapters + 1,
-            description="Combining chapters into full story"
+            step_description="Combining chapters into full story"
         )
         
         full_story_text = "\n\n".join(ch["final"] for ch in chapters)
@@ -929,8 +927,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="base_story",
             step_number=1,
-            total_steps=max_revision_passes + 1,
-            description="Generating base story"
+            step_description="Generating base story"
         )
         
         base = await self.run_full_story_pipeline_async(
@@ -945,7 +942,7 @@ Do not include any other text, just the JSON.
             max_chapters=max_chapters
         )
         
-        if pipeline_controller.should_stop():
+        if not pipeline_controller.wait_for_resume():
             return {"status": "stopped", "step": "base_story"}
         
         chapters = base["chapters"]
@@ -955,12 +952,10 @@ Do not include any other text, just the JSON.
             pipeline_controller.update_progress(
                 current_step=f"revision_pass_{pass_idx + 1}",
                 step_number=pass_idx + 2,
-                total_steps=max_revision_passes + 1,
-                description=f"Director revision pass {pass_idx + 1}/{max_revision_passes}"
+                step_description=f"Director revision pass {pass_idx + 1}/{max_revision_passes}"
             )
             
-            pipeline_controller.wait_if_paused()
-            if pipeline_controller.should_stop():
+            if not pipeline_controller.wait_for_resume():
                 return {"status": "stopped", "revision_pass": pass_idx}
             
             revised = []
@@ -971,8 +966,7 @@ Do not include any other text, just the JSON.
                 pipeline_controller.update_progress(
                     current_step=f"revision_pass_{pass_idx + 1}_chapter_{ch_idx + 1}",
                     step_number=ch_idx + 1,
-                    total_steps=total_chapters,
-                    description=f"Revising chapter {ch_idx + 1}/{total_chapters}"
+                    step_description=f"Revising chapter {ch_idx + 1}/{total_chapters}"
                 )
                 
                 text = ch.get("final") or ch.get("after_continuity") or ch.get("raw") or ""
@@ -1002,8 +996,7 @@ Do not include any other text, just the JSON.
         pipeline_controller.update_progress(
             current_step="final_assembly",
             step_number=max_revision_passes + 1,
-            total_steps=max_revision_passes + 1,
-            description="Assembling final story"
+            step_description="Assembling final story"
         )
         
         full_story_text = "\n\n".join(ch["final"] for ch in chapters)
